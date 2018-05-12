@@ -1,15 +1,12 @@
 library(dplyr)
-#library(ggplot2)
-#library(reshape2)
+library(ggplot2)
 library(readr)
-#library(gridExtra)
 library(RColorBrewer)
-
 
 df <- read_csv("data/gun-violence-data_01-2013_03-2018.csv")
 
-# Clean the dataset to keep the attributes that we are interested in
-gun <- df %>% select(incident_id, date, state, city_or_county, address, n_killed, n_injured, gun_stolen, gun_type, incident_characteristics, latitude, location_description, longitude, n_guns_involved, notes, participant_age, participant_age_group, participant_gender, participant_name, participant_relationship, participant_status, participant_type) 
+# Clean the dataset to remove the attributes we don't care about
+gun <- df %>% select(-c(incident_url, source_url, incident_url_fields_missing, congressional_district, sources, state_house_district, state_senate_district)) 
 
 
 # How many gun casualties (killed + injured) each year? 
@@ -26,6 +23,7 @@ suicide <- filter(gun, grepl("\\|\\|Suicide\\^", incident_characteristics)
 gun <- filter(gun, !(incident_id %in% suicide$incident_id))
 
 ### NOTE: DO WE NEED TO DECREASE N_KILLED FOR THE MURDER/SUICIDES BY 1? ###
+## No, it probably won't make a difference ##
 
 
 
@@ -42,3 +40,16 @@ gun %>% group_by(state) %>%
       theme(plot.title = element_text(size = 16)) + 
       labs(x = NULL, y = "Casualty (Injured + Killed)", 
            title = "Number of Gun Casualties in the US by State for 2014-2017")
+
+# ======================================
+statemap <- map_data("state")
+no_axes <- theme_bw() + theme(
+      axis.text = element_blank(),
+      axis.line = element_blank(),
+      axis.ticks = element_blank(),
+      panel.border = element_blank(),
+      panel.grid = element_blank(),
+      axis.title = element_blank()
+)
+p1 <- ggplot(data = statemap, aes(x = long, y = lat, group = group)) + geom_polygon(fill = "white", color = "black") + coord_fixed(1.3) + no_axes
+p2 <- p1 + geom_point(data = gun, aes(x = longitude, y = latitude, col = n_killed, size = 0.001, alpha = .1))

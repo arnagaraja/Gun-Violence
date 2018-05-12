@@ -9,13 +9,14 @@ library(dplyr)
 library(ggplot2)
 library(readr)
 library(RColorBrewer)
+library(maps)
 
 df <- read_csv("data/gun-violence-data_01-2013_03-2018.csv")
 ```
 
-There are a few columns we don't care about. Just keep the ones we want:
+There are a few columns we don't care about - drop those
 ```{r}
-gun <- df %>% select(incident_id, date, state, city_or_county, address, n_killed, n_injured, gun_stolen, gun_type, incident_characteristics, latitude, location_description, longitude, n_guns_involved, notes, participant_age, participant_age_group, participant_gender, participant_name, participant_relationship, participant_status, participant_type) 
+gun <- df %>% select(-c(incident_url, source_url, incident_url_fields_missing, congressional_district, sources, state_house_district, state_senate_district))
 ```
 
 So how many gun casualties (defined as number killed and injured) were there for each year?
