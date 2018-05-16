@@ -11,7 +11,6 @@ gun <- df %>% select(-c(incident_url, source_url, incident_url_fields_missing, c
 
 
 # How many gun casualties (killed + injured) each year? 
-#gun <- mutate(gun, n_casualty = n_killed + n_injured)
 gun %>% group_by(Year = format(date, "%Y")) %>% summarize(n = sum(n_injured + n_killed)) %>% ggplot(aes(x = Year, y = n)) + geom_col()
 
 # Clearly there are missing data from 2013, and 2018 isn't complete yet. Let's drop these two years
@@ -24,7 +23,7 @@ suicide <- filter(gun, grepl("\\|\\|Suicide\\^", incident_characteristics)
 gun <- filter(gun, !(incident_id %in% suicide$incident_id))
 
 ### NOTE: DO WE NEED TO DECREASE N_KILLED FOR THE MURDER/SUICIDES BY 1? ###
-## No, it probably won't make a difference ##
+## No, the difference will be unnoticeable ##
 
 
 
@@ -42,6 +41,7 @@ gun %>% group_by(state) %>%
       labs(x = NULL, y = "Casualty (Injured + Killed)", 
            title = "Number of Gun Casualties in the US by State for 2014-2017")
 
+# Project it onto a map of the US
 # ======================================
 statemap <- map_data("state")
 no_axes <- theme_bw() + theme(
@@ -60,6 +60,7 @@ png("p2.png", width = 2056, height = 2056)
 p2
 dev.off()
 
+# =====================================================
 
 # READ IN US POPULATION DATA BY STATE
 colNames <- c("id1", "id2", "state", "census2010", "cenbase2010", "2010", "2011", "2012", "2013", "2014", "2015", "2016", "2017")
@@ -70,9 +71,8 @@ pop <- pop %>% select(id1, state, "2014", "2015", "2016", "2017") %>% slice(6:n(
 
 # Casualties by state and year; remove Washington DC from the state rankings, since it will skew the results
 casByState <- gun %>% group_by(state, year = format(date, "%Y")) %>% filter(state != "District of Columbia") %>% 
-      summarize(n.casualty = sum(n_killed + n_injured))
-
-
+      summarize(n.casualty = sum(n_killed + n_injured), n.injured = sum(n_injured), n.killed = sum(n_killed))
+### FIX THE SUMMARIZE FUNCTION, I DID THIS STUPIDLY
 
 # Add the population and the per capita rate (per 100K people)
 
@@ -82,10 +82,10 @@ for (i in 1:nrow(casByState)) {
       popList <- c(popList, as.numeric(pop[pop$state == casByState$state[i], casByState$year[i]]))
 }
 
-casByState <- as.data.frame(casByState) %>% mutate(population = popList, per.capita100K = n.casualty/population*100000) %>% as_tibble()
+casByState <- as.data.frame(casByState) %>% mutate(population = popList, cas.per.capita100K = n.casualty/population*100000, k.per.capita100K = n.killed/population*100000, i.per.capita100K = n.injured/population*100000) %>% as_tibble()
 
 # p1: Casualty rate for all years for all states; hard to determine a pattern
-g <- ggplot(data = casByState, aes(x = reorder(state, -per.capita100K), y = per.capita100K, fill = year))
+g <- ggplot(data = casByState, aes(x = reorder(state, -cas.per.capita100K), y = cas.per.capita100K, fill = year))
 p1 <- g + geom_col(position = position_dodge()) + 
       theme(axis.text.x  = element_text(angle=90, vjust=0.5, size = 14)) + 
       theme(axis.title.y = element_text(size = 16)) + 
@@ -95,7 +95,7 @@ p1 <- g + geom_col(position = position_dodge()) +
 
 
 # Just plot the mean for each year
-casByStateMean <- group_by(casByState, state) %>% summarize(meanCasRate = mean(per.capita100K))
+casByStateMean <- group_by(casByState, state) %>% summarize(meanCasRate = mean(cas.per.capita100K), meanKRate = mean(k.per.capita100K), meanIRate = mean(i.per.capita100K))
 
 g <- ggplot(data = casByStateMean, aes(x = reorder(state, -meanCasRate), y = meanCasRate))
 p2 <- g + geom_col(position = position_dodge(), fill = cols[2]) + 
@@ -111,4 +111,83 @@ p3 <- p2 + geom_hline(yintercept = median(casByStateMean$meanCasRate), lwd = 1)
 # To Do:
 # Use plotly to show value when hovering over the bar
 # Classify each state based on strictness of gun laws
-# Look at cities
+# Word map for top 10 vs. last 10 states ("gang" vs. not?)
+# Look at cities; do it with and without per capita
+
+# READ IN US POPULATION DATA BY CITY
+colNames <- c("id1", "id2", "country", "tid1", "tid2", "rank", "geography1", "city", "census2010", "cenbase2010", "2010", "2011", "2012", "2013", "2014", "2015", "2016")
+citypop <- read_csv("data/US\ Population\ by\ City/PEP_2016_PEPANNRSIP.US12A_with_ann.csv", skip = 2, col_names = colNames)
+
+# Only keep the columns and rows we want (drop all the "government" and "county" entries)
+citypop <- select(citypop, tid2, city, "2014", "2015", "2016") %>% filter(!grepl("[Cc]ounty|government", city))
+
+# Reformatting city names
+cityState <- sub("^(.+) (city( \\(balance\\))?|municipality|village|town), (.+)", "\\1, \\4", citypop$city) %>% strsplit(", ")
+
+# split up the city column into city and state columns
+cityState <- as.data.frame(matrix(unlist(cityState), nrow = length(cityState), byrow = TRUE), stringsAsFactors = FALSE)
+names(cityState) <- c("city", "state")
+
+# Ventura, CA has a nonstandard entry; fix it
+cityState$city[grep("\\(", cityState$city)] <- "Ventura"
+
+# Integrate the new columns back to the tibble and rearrange
+# Also, since we are missing data for 2017, just reuse the 2016 column
+citypop <- mutate(citypop, city = cityState$city, state = cityState$state, "2017" = citypop$`2016`) %>% select(tid2, city, state, "2014", "2015", "2016", "2017")
+
+casByCity <- gun %>% group_by(city_or_county, state, year = format(date, "%Y")) %>% summarize(n.casualty = sum(n_killed + n_injured), n.killed = sum(n_killed), n.injured = sum(n_injured))
+
+# Get a per capita (100K) estimate for each city
+# First, generate the population vector:
+popList <- numeric()
+for (i in 1:nrow(casByCity)) {
+      theCity <- casByCity$city_or_county[i]
+      theState <- casByCity$state[i]
+      theYear <- casByCity$year[i]
+      ind <- which(citypop$city == theCity)
+      
+      if (length(ind) > 0 && theCity == citypop$city[ind] && theState == citypop$state[ind]) {
+            popList <- c(popList, as.numeric(citypop[citypop$state ==
+                                    theState & citypop$city == theCity, theYear]))
+      } else {
+            popList <- c(popList, NA)
+      }
+}
+
+# Get the short name for each state and attach it to the tibble
+data(state)
+abbs <- data.frame("abb" = state.abb, "state" = state.name, stringsAsFactors = FALSE)
+abbs <- rbind(abbs, c("DC", "District of Columbia"), stringsAsFactors = FALSE)
+abbList <- unlist(lapply(casByCity$state, function(x) abbs[which(abbs$state == x),]$abb))
+
+meanCBC <- as.data.frame(casByCity) %>% mutate(abb = abbList, population = popList, cas.per.capita100K = n.casualty/population*100000, k.per.capita100K = n.killed/population*100000, i.per.capita100K = n.injured/population*100000) %>% as_tibble()
+
+# Remove NA values and then compute the mean on the remaining values; sort by mean
+meanCBC <- group_by(meanCBC, city_or_county, state, abb) %>% filter(!is.na(population)) %>% summarize(meanCasRate = mean(cas.per.capita100K), meanKRate = mean(k.per.capita100K), meanIRate = mean(i.per.capita100K)) %>% arrange(desc(meanCasRate))
+
+top50 <- meanCBC[1:50,]
+
+# Plot it
+g <- ggplot(data = top50, aes(x = reorder(city_or_county, -meanCasRate), y = meanCasRate))
+
+cityplot <- g + geom_col(position = position_dodge(), fill = cols[2]) + 
+      theme(axis.text.x  = element_text(angle=90, vjust=0.5, hjust = .95, size = 12)) + 
+      theme(axis.title.y = element_text(size = 16)) + 
+      theme(plot.title = element_text(size = 16)) + 
+      guides(fill = FALSE) + 
+      labs(x = NULL, y = "Mean Casualty Rate per 100,000 People", 
+           title = "Mean Casualty Rate per 100,000 People by City (2014-2017 where available)")
+
+# Add the state abbreviations to the labels
+cityplot <- cityplot + scale_x_discrete(labels = paste(top50$city_or_county, sep = ", ", top50$abb))
+
+# Fatalities
+top50 <- arrange(top50, meanKRate)
+killplot <- ggplot(data = top50, aes(x = reorder(city_or_county, meanKRate), y = meanKRate)) + geom_col(position = position_dodge(), fill = cols[1]) + 
+      theme(axis.text.x  = element_text(angle=90, vjust=0.5, hjust = .95, size = 12)) + 
+      theme(axis.title.y = element_text(size = 16)) + 
+      theme(plot.title = element_text(size = 16)) + 
+      labs(x = NULL, y = "Mean Kill Rate per 100,000 People", 
+           title = "Mean Kill Rate per 100,000 People by City (2014-2017 where available)") +
+      scale_x_discrete(labels = paste(top50$city_or_county, sep = ", ", top50$abb)) + 
+      coord_flip()
