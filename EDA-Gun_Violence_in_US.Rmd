@@ -3,28 +3,33 @@ title: 'Gun Violence in the US: Exploratory Data Analysis'
 output: html_document
 ---
 
-Load libraries and the dataset:
-```{r load, cache = TRUE, results = FALSE}
+Load libraries:
+```{r load, results = FALSE}
 library(dplyr)
 library(ggplot2)
 library(readr)
 library(RColorBrewer)
-library(maps)
+library(reshape2)
+```
 
+Read the dataset:
+```{r read, cache = TRUE, results = FALSE}
 df <- read_csv("data/gun-violence-data_01-2013_03-2018.csv")
 ```
 
 There are a few columns we don't care about - drop those
 ```{r}
-gun <- df %>% select(-c(incident_url, source_url, incident_url_fields_missing, congressional_district, sources, state_house_district, state_senate_district))
+gun <- select(df, -c(incident_url, source_url, incident_url_fields_missing, congressional_district, sources, state_house_district, state_senate_district))
 ```
 
-So how many gun casualties (defined as number killed and injured) were there for each year?
+How many gun casualties (defined as number killed and injured) were there for each year?
 ```{r}
-gun %>% group_by(Year = format(date, "%Y")) %>% summarize(n = sum(n_injured + n_killed)) %>% ggplot(aes(x = Year, y = n)) + geom_col()
+gun %>% group_by(Year = format(date, "%Y")) %>% 
+      summarize(n = sum(n_injured + n_killed)) %>% 
+      ggplot(aes(x = Year, y = n)) + geom_col()
 ```
 
-Clearly there are missing data from 2013, and 2018 isn't complete yet. Let's drop these two years. Let's also separate the number of "battery" or "homicide" incidents from suicides. 
+Clearly there are missing data from 2013, and 2018 isn't complete yet. Let's drop these two years. Let's also separate the "battery" or "homicide" incidents from suicides. 
 ```{r}
 gun <- filter(gun, format(date, "%Y") != 2018 & format(date, "%Y") != 2013)
 suicide <- filter(gun, grepl("\\|\\|Suicide\\^", incident_characteristics)
@@ -33,6 +38,7 @@ suicide <- filter(gun, grepl("\\|\\|Suicide\\^", incident_characteristics)
 gun <- filter(gun, !(incident_id %in% suicide$incident_id))
 ```
 
+## Most Dangerous States
 How many gun casualties were there in each state for 2014-2017?
 
 ```{r fig.width=10}
@@ -44,6 +50,165 @@ gun %>% group_by(state) %>%
       theme(axis.text.x  = element_text(angle=90, vjust=0.5, size = 14)) + 
       theme(axis.title.y = element_text(size = 16)) + 
       theme(plot.title = element_text(size = 16)) + 
-      labs(x = NULL, y = "Casualty (Injured + Killed)", 
+      labs(x = NULL, y = "Casualties (Injuries + Fatalities)", 
            title = "Number of Gun Casualties in the US by State for 2014-2017")
+```
+
+The top 5 states with the highest casualty rate are:
+
+1. Illinois
+2. California
+3. Texas
+4. Florida
+5. Ohio
+
+However, these are also pretty populated states. What we really want to know is the *per capita* rate, since population is an important factor. I got census data for each state from 2010-2017 from the U.S. Census Bureau, and then calculated the per capita rates (per hundred thousand people) for each year:
+```{r cache = TRUE}
+# READ IN US POPULATION DATA BY STATE
+colNames <- c("id1", "id2", "state", "census2010", "cenbase2010", "2010", "2011", "2012", "2013", "2014", "2015", "2016", "2017")
+pop <- read_csv("data/US\ Population\ by\ State/PEP_2017_PEPANNRES_with_ann.csv", skip = 2, col_names = colNames)
+
+# Only keep the columns and rows we want
+pop <- select(pop, id1, state, "2014", "2015", "2016", "2017") %>% slice(6:n())
+
+# Casualties by state and year; I removed Washington DC from the state rankings, since it's technically a city, not a state
+casByState <- group_by(gun, state, year = format(date, "%Y")) %>% filter(state != "District of Columbia") %>% 
+      summarize(n.casualty = sum(n_killed + n_injured), n.injured = sum(n_injured), n.killed = sum(n_killed))
+
+# Add the population and the per capita rate (per 100K people)
+
+# First, generate the population vector:
+popList <- numeric()
+for (i in 1:nrow(casByState)) {
+      popList <- c(popList, as.numeric(pop[pop$state == casByState$state[i], casByState$year[i]]))
+}
+
+casByState <- as.data.frame(casByState) %>% mutate(population = popList, cas.per.capita100K = n.casualty/population*100000, k.per.capita100K = n.killed/population*100000, i.per.capita100K = n.injured/population*100000) %>% as_tibble()
+```
+Now that we have the per-state data for each year, let's take a look at it:
+```{r echo = FALSE}
+casByState
+```
+
+To make plotting a little simpler, let's take the mean of each per capita rate for each state across each year. So, for each state there will be four entries: 2014, 2015, 2016, and 2017.
+
+```{r}
+meanCBS <- group_by(casByState, state) %>% summarize(meanCasRate = mean(cas.per.capita100K), meanKRate = mean(k.per.capita100K), meanIRate = mean(i.per.capita100K))
+```
+
+Now let's plot it and see:
+```{r fig.width=10}
+ggplot(data = meanCBS, aes(x = reorder(state, -meanCasRate), y = meanCasRate)) + 
+      geom_col(fill = cols[2]) + 
+      theme(axis.text.x  = element_text(angle = 90, vjust = 0.5, size = 14)) + 
+      theme(axis.title.y = element_text(size = 16)) + 
+      theme(plot.title = element_text(size = 16)) + 
+      labs(x = NULL, y = "Mean Casualty Rate per 100,000 People", 
+           title = "Mean Casualty Rate per 100,000 People by State (2014-2017)") +
+      geom_hline(yintercept = median(meanCBS$meanCasRate), lwd = 1)
+```
+
+The black line represents the median value for all 50 states. The rankings have changed significantly. The top 5 states with the highest *per capita* casualty rate are:
+
+1. Louisiana
+2. Illinois
+3. Delaware
+4. Mississippi
+5. Tennessee
+
+The only state that remained in the top 5 after adjusting for population was Illinois, and that dropped one level.
+
+## Most Dangerous Cities
+Let's now look at the *cities* with the highest rates of per capita gun violence. I again used data from the US Census Bureau to find the population of cities in the United States. The dataset I used contained data from 2010-2016 for all cities greater than 50,000 residents. I had to do some manipulation of the city names in order to make them match the cities in the original dataset. Also, since there are no data for 2017, I just used the data for 2016 and assumed there wouldn't be any significant changes.
+```{r citydata, cache = TRUE}
+# READ IN US POPULATION DATA BY CITY
+colNames <- c("id1", "id2", "country", "tid1", "tid2", "rank", "geography1", "city", "census2010", "cenbase2010", "2010", "2011", "2012", "2013", "2014", "2015", "2016")
+citypop <- read_csv("data/US\ Population\ by\ City/PEP_2016_PEPANNRSIP.US12A_with_ann.csv", skip = 2, col_names = colNames)
+
+# Only keep the columns and rows we want (drop all the "government" and "county" entries)
+citypop <- select(citypop, tid2, city, "2014", "2015", "2016") %>% filter(!grepl("[Cc]ounty|government", city))
+
+# Reformatting city names
+cityState <- sub("^(.+) (city( \\(balance\\))?|municipality|village|town), (.+)", "\\1, \\4", citypop$city) %>% strsplit(", ")
+
+# split up the city column into city and state columns
+cityState <- as.data.frame(matrix(unlist(cityState), nrow = length(cityState), byrow = TRUE), stringsAsFactors = FALSE)
+names(cityState) <- c("city", "state")
+
+# Ventura, CA has a nonstandard entry; fix it
+cityState$city[grep("\\(", cityState$city)] <- "Ventura"
+
+# Integrate the new columns back to the tibble and rearrange
+# Also, since we are missing data for 2017, just reuse the 2016 column
+citypop <- mutate(citypop, city = cityState$city, state = cityState$state, "2017" = citypop$`2016`) %>% select(tid2, city, state, "2014", "2015", "2016", "2017")
+```
+
+Get the data by city for each year. Note: some years will be missing because those cities did not have any reported gun crimes in those years. Although this will affect the mean values for cities without any reported gun crimes in some years, we are only going to look at the top 50 cities. For these cities to be in the top 50, it stands to reason that there will be crimes from all four years.
+```{r cache = TRUE}
+casByCity <- gun %>% group_by(city_or_county, state, year = format(date, "%Y")) %>% summarize(n.casualty = sum(n_killed + n_injured), n.killed = sum(n_killed), n.injured = sum(n_injured))
+casByCity
+```
+
+Now, we need a per capita estimate for each city. First we need to generate a vector of populations: figure out if the city in our data frame is actually in the population dataset, and if it is, grab the population for that particular year. Again, the 2017 population values are the same as the 2016 ones.
+```{r cache = TRUE}
+# Get a per capita (100K) estimate for each city
+# First, generate the population vector:
+popList <- numeric()
+for (i in 1:nrow(casByCity)) {
+      theCity <- casByCity$city_or_county[i]
+      theState <- casByCity$state[i]
+      theYear <- casByCity$year[i]
+      ind <- which(citypop$city == theCity)
+      
+      if (length(ind) > 0 && theCity == citypop$city[ind] && theState == citypop$state[ind]) {
+            popList <- c(popList, as.numeric(citypop[citypop$state ==
+                                    theState & citypop$city == theCity, theYear]))
+      } else {
+            popList <- c(popList, NA)
+      }
+}
+```
+
+We're also going to need the two letter abbreviations for each state for labels later, so let's grab those and put them in the data frame as well. Don't forget Washington, D.C.!:
+```{r}
+# Get the short name for each state and attach it to the tibble
+data(state)
+abbs <- data.frame("abb" = state.abb, "state" = state.name, stringsAsFactors = FALSE)
+abbs <- rbind(abbs, c("DC", "District of Columbia"), stringsAsFactors = FALSE)
+abbList <- unlist(lapply(casByCity$state, function(x) abbs[which(abbs$state == x),]$abb))
+```
+
+Add the population and abbrevation columns, and calculate the mean values for each each state:
+```{r cache = TRUE}
+meanCBC <- as.data.frame(casByCity) %>% mutate(abb = abbList, population = popList, cas.per.capita100K = n.casualty/population*100000, k.per.capita100K = n.killed/population*100000, i.per.capita100K = n.injured/population*100000) %>% as_tibble()
+
+# Remove NA values and then compute the mean on the remaining values; sort by mean
+meanCBC <- group_by(meanCBC, city_or_county, state, abb) %>% filter(!is.na(population)) %>% summarize(meanCasRate = mean(cas.per.capita100K), meanKRate = mean(k.per.capita100K), meanIRate = mean(i.per.capita100K)) %>% arrange(desc(meanCasRate))
+
+meanCBC
+```
+
+Let's plot the top 50:
+```{r top50IF, fig.width = 10, fig.height = 8}
+top50 <- meanCBC[1:50,]
+
+top50 <- arrange(top50, meanCasRate)
+top50 <- mutate(top50, meanIRate = -meanIRate)
+top50melt2 <- melt(top50[,c("city_or_county", "abb", "meanKRate", "meanIRate")], id.vars = c("city_or_county", "abb"))
+
+ggplot(data = top50melt2) + geom_col(aes(x = city_or_county, y = value, fill = variable)) +
+      scale_y_continuous(breaks = c(50, 0, -50, -100, -150), labels = c("50", "0", "50", "100", "150")) + 
+      theme(axis.text.x  = element_text(hjust = .95, size = 12)) + 
+      theme(axis.text.y = element_text(vjust = 0.5, size = 10)) +
+      theme(axis.title.y = element_text(size = 14)) + 
+      theme(plot.title = element_text(size = 16)) + 
+      theme(legend.title = element_blank()) + 
+      theme(legend.position = "bottom") + 
+      theme(legend.text = element_text(size = 14)) + 
+      scale_fill_discrete(labels = c("Fatalities", "Injuries"), guide = guide_legend(reverse = TRUE)) +
+      labs(x = NULL) +
+      labs(y = "Mean Injury/Fatality Rate per 100,000 People") +
+      labs(title = "Mean Injury/Fatality Rate per 100,000 People by City (2014-2017 where available)") + 
+      scale_x_discrete(limits = top50$city_or_county, labels = paste(top50$city_or_county, sep = ", ", top50$abb)) +
+      coord_flip()
 ```

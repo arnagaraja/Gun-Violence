@@ -72,7 +72,6 @@ pop <- pop %>% select(id1, state, "2014", "2015", "2016", "2017") %>% slice(6:n(
 # Casualties by state and year; remove Washington DC from the state rankings, since it will skew the results
 casByState <- gun %>% group_by(state, year = format(date, "%Y")) %>% filter(state != "District of Columbia") %>% 
       summarize(n.casualty = sum(n_killed + n_injured), n.injured = sum(n_injured), n.killed = sum(n_killed))
-### FIX THE SUMMARIZE FUNCTION, I DID THIS STUPIDLY
 
 # Add the population and the per capita rate (per 100K people)
 
@@ -108,12 +107,7 @@ p2 <- g + geom_col(position = position_dodge(), fill = cols[2]) +
 # Add a line for the median
 p3 <- p2 + geom_hline(yintercept = median(casByStateMean$meanCasRate), lwd = 1)
 
-# To Do:
-# Use plotly to show value when hovering over the bar
-# Classify each state based on strictness of gun laws
-# Word map for top 10 vs. last 10 states ("gang" vs. not?)
-# Look at cities; do it with and without per capita
-
+# =============================================================================
 # READ IN US POPULATION DATA BY CITY
 colNames <- c("id1", "id2", "country", "tid1", "tid2", "rank", "geography1", "city", "census2010", "cenbase2010", "2010", "2011", "2012", "2013", "2014", "2015", "2016")
 citypop <- read_csv("data/US\ Population\ by\ City/PEP_2016_PEPANNRSIP.US12A_with_ann.csv", skip = 2, col_names = colNames)
@@ -168,6 +162,7 @@ meanCBC <- group_by(meanCBC, city_or_county, state, abb) %>% filter(!is.na(popul
 top50 <- meanCBC[1:50,]
 
 # Plot it
+top50 <- arrange(top50, desc(meanCasRate))
 g <- ggplot(data = top50, aes(x = reorder(city_or_county, -meanCasRate), y = meanCasRate))
 
 cityplot <- g + geom_col(position = position_dodge(), fill = cols[2]) + 
@@ -187,7 +182,52 @@ killplot <- ggplot(data = top50, aes(x = reorder(city_or_county, meanKRate), y =
       theme(axis.text.x  = element_text(angle=90, vjust=0.5, hjust = .95, size = 12)) + 
       theme(axis.title.y = element_text(size = 16)) + 
       theme(plot.title = element_text(size = 16)) + 
-      labs(x = NULL, y = "Mean Kill Rate per 100,000 People", 
-           title = "Mean Kill Rate per 100,000 People by City (2014-2017 where available)") +
+      labs(x = NULL, y = "Mean Fatality Rate per 100,000 People", 
+           title = "Mean Fatality Rate per 100,000 People by City (2014-2017 where available)") +
       scale_x_discrete(labels = paste(top50$city_or_county, sep = ", ", top50$abb)) + 
       coord_flip()
+
+# Fatalities and Injuries
+library(reshape2)
+top50 <- arrange(top50, desc(meanCasRate))
+top50melt <- melt(top50[,c("city_or_county", "abb", "meanKRate", "meanIRate")], id.vars = c("city_or_county", "abb"))
+
+kiplot <- ggplot(data = top50melt) + geom_col(aes(x = city_or_county, y = value, fill = variable)) + 
+      theme(axis.text.x  = element_text(angle=90, vjust=0.5, hjust = .95, size = 12)) + 
+      theme(axis.title.y = element_text(size = 16)) + 
+      theme(plot.title = element_text(size = 16)) + 
+      theme(legend.title = element_blank()) + 
+      scale_fill_discrete(labels = c("Fatalities", "Injuries")) +
+      labs(x = NULL, y = "Mean Casualty Rate per 100,000 People", 
+           title = "Mean Casualty Rate per 100,000 People by City (2014-2017 where available)") +
+      scale_x_discrete(limits = top50$city_or_county, labels = paste(top50$city_or_county, sep = ", ", top50$abb)) +
+      theme(legend.text = element_text(size = 16))
+
+
+# Adhoc symmetric horizontal bar plot
+top50 <- arrange(top50, meanCasRate)
+top50 <- mutate(top50, meanIRate = -meanIRate)
+top50melt2 <- melt(top50[,c("city_or_county", "abb", "meanKRate", "meanIRate")], id.vars = c("city_or_county", "abb"))
+
+kiplot2 <- ggplot(data = top50melt2) + geom_col(aes(x = city_or_county, y = value, fill = variable)) +
+      scale_y_continuous(breaks = c(50, 0, -50, -100, -150), labels = c("50", "0", "50", "100", "150")) + 
+      theme(axis.text.x  = element_text(hjust = .95, size = 12)) + 
+      theme(axis.text.y = element_text(vjust = 0.5, size = 10)) +
+      theme(axis.title.y = element_text(size = 14)) + 
+      theme(plot.title = element_text(size = 16)) + 
+      theme(legend.title = element_blank()) + 
+      theme(legend.position = "bottom") + 
+      theme(legend.text = element_text(size = 14)) + 
+      scale_fill_discrete(labels = c("Fatalities", "Injuries"), guide = guide_legend(reverse = TRUE)) +
+      labs(x = NULL) +
+      labs(y = "Mean Injury/Fatality Rate per 100,000 People") +
+      labs(title = "Mean Injury/Fatality Rate per 100,000 People by City (2014-2017 where available)") + 
+      scale_x_discrete(limits = top50$city_or_county, labels = paste(top50$city_or_county, sep = ", ", top50$abb)) +
+      coord_flip()
+
+
+
+# To Do:
+# Use plotly to show value when hovering over the bar
+# Classify each state based on strictness of gun laws
+      
