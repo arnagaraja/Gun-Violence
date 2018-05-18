@@ -225,7 +225,8 @@ kiplot2 <- ggplot(data = top50melt2) + geom_col(aes(x = city_or_county, y = valu
       scale_x_discrete(limits = top50$city_or_county, labels = paste(top50$city_or_county, sep = ", ", top50$abb)) +
       coord_flip()
 
-
+library(plotly)
+ggplotly(kiplot2)
 
 # To Do:
 # Use plotly to show value when hovering over the bar

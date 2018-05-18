@@ -10,6 +10,7 @@ library(ggplot2)
 library(readr)
 library(RColorBrewer)
 library(reshape2)
+library(plotly)
 ```
 
 Read the dataset:
@@ -197,7 +198,7 @@ top50 <- mutate(top50, meanIRate = -meanIRate)
 top50melt2 <- melt(top50[,c("city_or_county", "abb", "meanKRate", "meanIRate")], id.vars = c("city_or_county", "abb"))
 
 ggplot(data = top50melt2) + geom_col(aes(x = city_or_county, y = value, fill = variable)) +
-      scale_y_continuous(breaks = c(50, 0, -50, -100, -150), labels = c("50", "0", "50", "100", "150")) + 
+      scale_y_continuous(limits = c(-150,150), breaks = c(150, 100, 50, 0, -50, -100, -150), labels = c("150", "100", "50", "0", "50", "100", "150")) + 
       theme(axis.text.x  = element_text(hjust = .95, size = 12)) + 
       theme(axis.text.y = element_text(vjust = 0.5, size = 10)) +
       theme(axis.title.y = element_text(size = 14)) + 
@@ -206,9 +207,16 @@ ggplot(data = top50melt2) + geom_col(aes(x = city_or_county, y = value, fill = v
       theme(legend.position = "bottom") + 
       theme(legend.text = element_text(size = 14)) + 
       scale_fill_discrete(labels = c("Fatalities", "Injuries"), guide = guide_legend(reverse = TRUE)) +
-      labs(x = NULL) +
-      labs(y = "Mean Injury/Fatality Rate per 100,000 People") +
+      labs(x = NULL, y = NULL) +
       labs(title = "Mean Injury/Fatality Rate per 100,000 People by City (2014-2017 where available)") + 
       scale_x_discrete(limits = top50$city_or_county, labels = paste(top50$city_or_county, sep = ", ", top50$abb)) +
       coord_flip()
 ```
+According to the data, the top 5 cities with the most gun violence are:
+1. Trenton, NJ
+2. New Orleans, LA
+3. Gary, IN
+4. Baltimore, MD
+5. Flint, MI
+
+Chicago comes in at 7th, even though Illinois was the second highest per capita state.
