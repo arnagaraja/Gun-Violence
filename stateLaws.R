@@ -1,6 +1,7 @@
 # Classify each state based on strictness of gun laws
 library(readr)
 library(dplyr)
+library(scales)
 
 lawsdf <- read_csv("~/R Projects/Gun Violence/Gun-Violence/data/Laws/48_states_1991_data.csv")
 
@@ -45,3 +46,39 @@ pcaswithlaw <- p2 + scale_fill_gradient2(low = muted("red"), mid = "white", high
 pcaswithlaw
 
 
+### NOW DO IT WITH THE CITY DATA!
+### N.B. - MAKE SURE THE NECESSARY DATASETS ARE LOADED INTO THE ENVIRONMENT
+
+# Is there a correlation between the number of state laws and the number of casualties in each city? First, remove DC since we don't have data on the number of gun laws there
+top49 <- filter(top50, state != "District of Columbia")
+lawlist <- sapply(top49$state, function(x) mean.laws.by.year[mean.laws.by.year$State == x,2])
+top49 <- ungroup(top49) %>% mutate(numlaws = unlist(lawlist))
+qplot(x = numlaws, y = meanCasRate, data = top49, xlab = "Number of Laws", ylab = "Casualty Rate")
+
+# Adhoc symmetric horizontal bar plot
+top49 <- arrange(top49, meanCasRate)
+top49 <- mutate(top49, meanIRate = -meanIRate)
+top49melt <- melt(top49[,c("city_or_county", "abb", "meanKRate", "meanIRate", "numlaws")], id.vars = c("city_or_county", "abb", "numlaws"))
+
+kiplot3 <- ggplot(data = top49melt) + geom_col(aes(x = city_or_county, y = value, fill = numlaws)) +
+      scale_y_continuous(breaks = c(50, 0, -50, -100, -150), labels = c("50", "0", "50", "100", "150")) + 
+      theme(axis.text.x  = element_text(hjust = .95, size = 12)) + 
+      theme(axis.text.y = element_text(vjust = 0.5, size = 10)) +
+      theme(axis.title.y = element_text(size = 14)) + 
+      theme(plot.title = element_text(size = 16)) + 
+      #theme(legend.title = element_blank()) + 
+      #theme(legend.position = "bottom") + 
+      #theme(legend.text = element_text(size = 14)) + 
+      labs(x = NULL, y = NULL) +
+      labs(title = "Mean Injury/Fatality Rate per 100,000 People by City (2014-2017 where available)") + 
+      scale_x_discrete(limits = top49$city_or_county, labels = paste(top49$city_or_county, sep = ", ", top49$abb)) +
+      geom_hline(yintercept = 0, lwd = 1, color = "black") +
+      coord_flip()
+
+citycaswithlaw <- kiplot3 + scale_fill_gradient2(low = muted("red"), mid = "white", high = muted("blue"), midpoint = max(top49$numlaws)/2, name = "Avg. Number of State Gun Laws", guide = guide_colorbar(direction = "horizontal", title.position = "top", barwidth = 10, title.hjust = .5)) + 
+      theme(legend.background = element_rect(fill="gray90", size=.3, color = "black", linetype = 1)) +
+      theme(legend.justification=c(.125,.125), legend.position=c(.125,.125)) +
+      annotate("label", x = 25, y = -100, label = "Injuries", size = 6) + 
+      annotate("label", x = 25, y = 45, label = "Fatalities", size = 6)
+
+citycaswithlaw
