@@ -72,10 +72,10 @@ kiplot3 <- ggplot(data = top49melt) + geom_col(aes(x = city_or_county, y = value
       labs(x = NULL, y = NULL) +
       labs(title = "Mean Injury/Fatality Rate per 100,000 People by City (2014-2017 where available)") + 
       scale_x_discrete(limits = top49$city_or_county, labels = paste(top49$city_or_county, sep = ", ", top49$abb)) +
-      geom_hline(yintercept = 0, lwd = 1, color = "black") +
+      geom_hline(yintercept = 0, lwd = 2, color = "black") +
       coord_flip()
 
-citycaswithlaw <- kiplot3 + scale_fill_gradient2(low = muted("red"), mid = "white", high = muted("blue"), midpoint = max(top49$numlaws)/2, name = "Avg. Number of State Gun Laws", guide = guide_colorbar(direction = "horizontal", title.position = "top", barwidth = 10, title.hjust = .5)) + 
+citycaswithlaw <- kiplot3 + scale_fill_gradient2(midpoint = max(top49$numlaws)/2, name = "Avg. Number of State Gun Laws", guide = guide_colorbar(direction = "horizontal", title.position = "top", barwidth = 10, title.hjust = .5)) + 
       theme(legend.background = element_rect(fill="gray90", size=.3, color = "black", linetype = 1)) +
       theme(legend.justification=c(.125,.125), legend.position=c(.125,.125)) +
       annotate("label", x = 25, y = -100, label = "Injuries", size = 6) + 
