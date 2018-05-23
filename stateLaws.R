@@ -59,7 +59,7 @@ meanCBClaws <- ungroup(meanCBClaws) %>% mutate("numlaws" = round(unlist(lawlist)
 oldnames <- names(meanCBClaws)
 
 # Do some renaming to make things easier to understand
-names(meanCBClaws) <- c("City", "state", "State", "Casualty Rate", "Fatality Rate", "Injury Rate", "Number of Laws")
+names(meanCBClaws) <- c("City", "state.long", "State", "Casualty Rate", "Fatality Rate", "Injury Rate", "Number of Laws")
 
 p.allcities <- ggplot(data = meanCBClaws, aes(x = `Number of Laws`, y = `Casualty Rate`, color = State)) +
       geom_point(aes(text = paste(City, ", ", State, "<br>Number of Laws: ", `Number of Laws`, "<br>Casualty Rate: ", `Casualty Rate`, "<br>Fatality Rate: ", `Fatality Rate`, "<br>Injury Rate: ", `Injury Rate`, sep = ""))) + 
@@ -71,7 +71,7 @@ ggplotly(p.allcities, tooltip = c("text"))
 
 
 bw.allcities <- ggplot(data = meanCBClaws, aes(x = reorder(state, -`Casualty Rate`), y = `Casualty Rate`, fill = `Number of Laws`)) +
-      geom_boxplot() +
+      geom_boxplot() + 
       labs(x = NULL) + 
       labs (y = "Casualty Rate (Per 100,000 People)") +
       scale_fill_gradient2(midpoint = max(meanCBClaws$`Number of Laws`)/2, name = "Avg. Number of State Gun Laws", guide = guide_colorbar(direction = "horizontal", title.position = "top", barwidth = 10, title.hjust = .5)) + 
@@ -81,7 +81,7 @@ bw.allcities <- ggplot(data = meanCBClaws, aes(x = reorder(state, -`Casualty Rat
       theme(axis.title.y = element_text(size = 16)) + 
       theme(plot.title = element_text(size = 16))
 
-#ggplotly(bw.allcities)
+bw.allcities
 
 
 
