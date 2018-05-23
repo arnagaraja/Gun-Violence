@@ -2,6 +2,8 @@
 library(readr)
 library(dplyr)
 library(scales)
+library(ggplot2)
+library(plotly)
 
 lawsdf <- read_csv("~/R Projects/Gun Violence/Gun-Violence/data/Laws/48_states_1991_data.csv")
 
@@ -50,14 +52,25 @@ pcaswithlaw
 ### N.B. - MAKE SURE THE NECESSARY DATASETS ARE LOADED INTO THE ENVIRONMENT
 
 # Is there a correlation between the number of state laws and the number of casualties in each city? First, remove DC since we don't have data on the number of gun laws there
-top49 <- filter(top50, state != "District of Columbia")
-lawlist <- sapply(top49$state, function(x) mean.laws.by.year[mean.laws.by.year$State == x,2])
-top49 <- ungroup(top49) %>% mutate(numlaws = unlist(lawlist))
-qplot(x = numlaws, y = meanCasRate, data = top49, xlab = "Number of Laws", ylab = "Casualty Rate")
+meanCBClaws <- filter(meanCBC, state != "District of Columbia")
+
+lawlist <- sapply(meanCBClaws$state, function(x) mean.laws.by.year[mean.laws.by.year$State == x,2])
+
+meanCBClaws <- ungroup(meanCBClaws) %>% mutate("numlaws" = round(unlist(lawlist), digits = 1), meanCasRate = round(meanCasRate, digits = 1), meanKRate = round(meanKRate, digits = 1), meanIRate = round(meanIRate, digits = 1))
+
+# Do some renaming to make things easier to understand
+names(meanCBClaws) <- c("City", "state", "State", "Casualty Rate", "Fatality Rate", "Injury Rate", "Number of Laws")
+
+p.allcities <- ggplot(data = meanCBClaws, aes(x = `Number of Laws`, y = `Casualty Rate`, color = State)) +
+      geom_point(aes(text = paste(City, ", ", State, "<br>Number of Laws: ", `Number of Laws`, "<br>Casualty Rate: ", `Casualty Rate`, "<br>Fatality Rate: ", `Fatality Rate`, "<br>Injury Rate: ", `Injury Rate`, sep = ""))) + 
+      labs(x = "Number of Laws") + 
+      labs (y = "Casualty Rate (Per 100,000 People)") +
+      theme(legend.position = "none")
+
+ggplotly(p.allcities, tooltip = c("text"))
 
 # Adhoc symmetric horizontal bar plot
-top49 <- arrange(top49, meanCasRate)
-top49 <- mutate(top49, meanIRate = -meanIRate)
+top49 <- meanCBClaws[1:49,] %>% arrange(meanCasRate) %>% mutate(meanIRate = -meanIRate)
 top49melt <- melt(top49[,c("city_or_county", "abb", "meanKRate", "meanIRate", "numlaws")], id.vars = c("city_or_county", "abb", "numlaws"))
 
 kiplot3 <- ggplot(data = top49melt) + geom_col(aes(x = city_or_county, y = value, fill = numlaws)) +
