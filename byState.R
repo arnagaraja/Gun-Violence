@@ -52,7 +52,7 @@ for (i in 1:nrow(casByState)) {
       popList <- c(popList, as.numeric(pop[pop$state == casByState$state[i], casByState$year[i]]))
 }
 
-casByState <- as.data.frame(casByState) %>% mutate(population = popList, cas.per.capita100K = n.casualty/population*100000, k.per.capita100K = n.killed/population*100000, i.per.capita100K = n.injured/population*100000) %>% as_tibble()
+casByState <- ungroup(casByState) %>% mutate(population = popList, cas.per.capita100K = n.casualty/population*100000, k.per.capita100K = n.killed/population*100000, i.per.capita100K = n.injured/population*100000)
 
 # p1: Casualty rate for all years for all states; hard to determine a pattern
 g <- ggplot(data = casByState, aes(x = reorder(state, -cas.per.capita100K), y = cas.per.capita100K, fill = year))
@@ -65,9 +65,9 @@ p1 <- g + geom_col(position = position_dodge()) +
 
 
 # Just plot the mean for each year
-casByStateMean <- group_by(casByState, state) %>% summarize(meanCasRate = mean(cas.per.capita100K), meanKRate = mean(k.per.capita100K), meanIRate = mean(i.per.capita100K))
+meanCBS <- group_by(casByState, state) %>% summarize(meanCasRate = mean(cas.per.capita100K), meanKRate = mean(k.per.capita100K), meanIRate = mean(i.per.capita100K))
 
-g <- ggplot(data = casByStateMean, aes(x = reorder(state, -meanCasRate), y = meanCasRate))
+g <- ggplot(data = meanCBS, aes(x = reorder(state, -meanCasRate), y = meanCasRate))
 p2 <- g + geom_col(position = position_dodge(), fill = cols[2]) + 
       theme(axis.text.x  = element_text(angle=90, vjust=0.5, size = 14)) + 
       theme(axis.title.y = element_text(size = 16)) + 
