@@ -15,6 +15,18 @@ names(cityState) <- c("city", "state")
 # Ventura, CA has a nonstandard entry; fix it
 cityState$city[grep("\\(", cityState$city)] <- "Ventura"
 
+# In the original gun violence data, the cities listed for New York are split into the five boroughs. So, for example, Brooklyn and The Bronx are separate entries, when they need to be considered "New York" for our purposes. Let's fix that manually.
+ny <- filter(gun, state == "New York")
+nycInd <- grep("Manhattan|Queens|Bronx|Staten Island|Brooklyn|New York City", ny$city_or_county)
+nyc <- ny[nycInd,] %>% filter(city_or_county != "Queensbury")
+
+# Now go through the gun dataframe and change all relevant city_or_state entries to "New York"
+for(i in 1:nrow(nyc)) {
+      incident <- nyc$incident_id[i]
+      index <- which(gun$incident_id == incident)
+      gun[index,"city_or_county"] <- "New York"
+}
+
 # Integrate the new columns back to the tibble and rearrange
 # Also, since we are missing data for 2017, just reuse the 2016 column
 citypop <- mutate(citypop, city = cityState$city, state = cityState$state, "2017" = citypop$`2016`) %>% select(tid2, city, state, "2014", "2015", "2016", "2017")

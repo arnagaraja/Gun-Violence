@@ -70,7 +70,7 @@ p.allcities <- ggplot(data = meanCBClaws, aes(x = `Number of Laws`, y = `Casualt
 ggplotly(p.allcities, tooltip = c("text"))
 
 
-bw.allcities <- ggplot(data = meanCBClaws, aes(x = reorder(state, -`Casualty Rate`), y = `Casualty Rate`, fill = `Number of Laws`)) +
+bw.allcities <- ggplot(data = meanCBClaws, aes(x = state.long, y = `Casualty Rate`, fill = `Number of Laws`)) +
       geom_boxplot() + 
       labs(x = NULL) + 
       labs (y = "Casualty Rate (Per 100,000 People)") +

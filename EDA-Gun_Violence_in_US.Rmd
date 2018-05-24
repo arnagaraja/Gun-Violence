@@ -99,7 +99,7 @@ meanCBS <- group_by(casByState, state) %>% summarize(meanCasRate = mean(cas.per.
 ```
 
 Now let's plot it and see:
-```{r fig.width=10}
+```{r fig.width=10, fig.height = 6}
 ggplot(data = meanCBS, aes(x = reorder(state, -meanCasRate), y = meanCasRate)) + 
       geom_col(fill = cols[2]) + 
       theme(axis.text.x  = element_text(angle = 90, vjust = 0.5, size = 14)) + 
@@ -139,6 +139,18 @@ names(cityState) <- c("city", "state")
 
 # Ventura, CA has a nonstandard entry; fix it
 cityState$city[grep("\\(", cityState$city)] <- "Ventura"
+
+# In the original gun violence data, the cities listed for New York are split into the five boroughs. So, for example, Brooklyn and The Bronx are separate entries, when they need to be considered "New York" for our purposes. Let's fix that manually.
+ny <- filter(gun, state == "New York")
+nycInd <- grep("Manhattan|Queens|Bronx|Staten Island|Brooklyn|New York City", ny$city_or_county)
+nyc <- ny[nycInd,] %>% filter(city_or_county != "Queensbury")
+
+# Now go through the gun dataframe and change all relevant city_or_state entries to "New York"
+for(i in 1:nrow(nyc)) {
+      incident <- nyc$incident_id[i]
+      index <- which(gun$incident_id == incident)
+      gun[index,"city_or_county"] <- "New York"
+}
 
 # Integrate the new columns back to the tibble and rearrange
 # Also, since we are missing data for 2017, just reuse the 2016 column
@@ -260,7 +272,7 @@ qplot(x = numlaws, y = meanCasRate, data = meanCBS, xlab = "Number of Laws", yla
 It doesn't appear so. Some states have few laws on the books and have a lower casualty rate, whereas others achieve the low casualty rate with a higher than average number of laws. There are also a lot of states with a high casualty rate and few laws. It could be argued that the states with more laws would actually be *more* violent if the laws didn't exist, but it is difficult to tease out that effect.
 
 Let's look at how each state ranks in terms of casualty rate and the number of gun laws:
-```{r stateLaw-stateRank, fig.width = 10}
+```{r stateLaw-stateRank, fig.width = 10, fig.height = 6}
 g <- ggplot(data = meanCBS, aes(x = reorder(state, -meanCasRate), y = meanCasRate, fill = numlaws))
 p2 <- g + geom_col(color = "gray") + 
       theme(axis.text.x  = element_text(angle=90, vjust=0.5, size = 14)) + 
@@ -301,11 +313,11 @@ p.allcities <- ggplot(data = meanCBClaws, aes(x = `Number of Laws`, y = `Casualt
 
 ggplotly(p.allcities, tooltip = c("text"))
 ```
-There are 699 cities displayed here (there are actually a lot more cities throughout the US where gun violence occurred, but remember, the population data was only available for cities over 50,000 people). It is clear that in a given state, there is a wide distribution in the casualty rates. You can hover over each point to see the data it represents.
+There are 699 cities displayed here (there are actually a lot more cities throughout the US where gun violence occurred, but the population data were only available for cities over 50,000 people). It is clear that in a given state, there is a wide distribution in the casualty rates. You can hover over each point to see the data it represents.
 
 Let's look at a box and whisker plot in order to see the distribution in city casualty rates in each state:
-```{r stateLaw-bwplot, fig.width = 10, fig.height = 8}
-ggplot(data = meanCBClaws, aes(x = reorder(state.long, -`Casualty Rate`), y = `Casualty Rate`, fill = `Number of Laws`)) +
+```{r stateLaw-bwplot, fig.width = 10, fig.height = 6}
+ggplot(data = meanCBClaws, aes(x = state.long, y = `Casualty Rate`, fill = `Number of Laws`)) +
       geom_boxplot() + 
       labs(x = NULL) + 
       labs (y = "Casualty Rate (Per 100,000 People)") +
@@ -317,3 +329,38 @@ ggplot(data = meanCBClaws, aes(x = reorder(state.long, -`Casualty Rate`), y = `C
       theme(plot.title = element_text(size = 16))
 ```
 
+**SAY SOMETHING HERE**
+
+Now let's take another look at the injury/fatality rates for the Top 49 cities with the highest rates of gun casualty, this time colored by number of state laws. These are the same cities as those in the Top 50 rank we did earlier, except we've excluded Washington, DC.
+
+```{r stateLaw-inj-fat, fig.width = 10, fig.height = 8}
+names(meanCBClaws) <- oldnames 
+
+# Take the top 49 cities and change the injury rate to negative for easy plotting
+top49 <- meanCBClaws[1:49,] %>% arrange(meanCasRate) %>% mutate(meanIRate = -meanIRate)
+top49melt <- melt(top49[,c("city_or_county", "abb", "meanKRate", "meanIRate", "numlaws")], id.vars = c("city_or_county", "abb", "numlaws"))
+
+kiplot3 <- ggplot(data = top49melt) + geom_col(aes(x = city_or_county, y = value, fill = numlaws)) +
+      scale_y_continuous(breaks = c(50, 0, -50, -100, -150), labels = c("50", "0", "50", "100", "150")) + 
+      theme(axis.text.x  = element_text(hjust = .95, size = 12)) + 
+      theme(axis.text.y = element_text(vjust = 0.5, size = 10)) +
+      theme(axis.title.y = element_text(size = 14)) + 
+      theme(plot.title = element_text(size = 16)) + 
+      labs(x = NULL, y = NULL) +
+      labs(title = "Mean Injury/Fatality Rate per 100,000 People by City (2014-2017 where available)") + 
+      scale_x_discrete(limits = top49$city_or_county, labels = paste(top49$city_or_county, sep = ", ", top49$abb)) +
+      geom_hline(yintercept = 0, lwd = 2, color = "black") +
+      coord_flip()
+
+citycaswithlaw <- kiplot3 + scale_fill_gradient2(midpoint = max(top49$numlaws)/2, name = "Avg. Number of State Gun Laws", guide = guide_colorbar(direction = "horizontal", title.position = "top", barwidth = 10, title.hjust = .5)) + 
+      theme(legend.background = element_rect(fill="gray90", size=.3, color = "black", linetype = 1)) +
+      theme(legend.justification=c(.125,.125), legend.position=c(.125,.125)) +
+      annotate("label", x = 25, y = -100, label = "Injuries", size = 6) + 
+      annotate("label", x = 25, y = 45, label = "Fatalities", size = 6)
+
+citycaswithlaw
+```
+
+Limitations: Individual city laws are not considered. For example, New York City has an average casualty rate of 8.5 per hundred thousand people for 2014-2017. It is one of the MOST POPULOUS cities in the US, yet has a below-average rate of gun casualties. It also has some of the strictest laws. For comparison, Chicago is another densely populated US City and has an average casualty rate of 110 per hundred thousand people. That is almost 13 times as much as NYC!
+
+It seems likely that the laws that exist in New York City are actually effective in curbing gun violence (although it is important to note that we are not considering overall crime here). However, it is unlikely that simply passing MORE laws will be effective. It is important to consider the types of laws that exist, as well as the means of enforcing those laws. 
