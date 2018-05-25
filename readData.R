@@ -18,10 +18,10 @@ gun %>% group_by(Year = format(date, "%Y")) %>% summarize(n = sum(n_injured + n_
 gun <- filter(gun, format(date, "%Y") != 2018 & format(date, "%Y") != 2013)
 
 # Let's also remove the suicides (excluding murder/suicides)
-suicide <- filter(gun, grepl("\\|\\|Suicide\\^", incident_characteristics)
-                  & n_killed + n_injured < 2)
+gun <- filter(gun, !(grepl("\\|\\|Suicide\\^", incident_characteristics)
+                  & n_killed + n_injured < 2))
 
-gun <- filter(gun, !(incident_id %in% suicide$incident_id))
+# Remove shootings involving replica weapons and officer involved shootings
+gun <- filter(gun, !grepl("Officer Involved Shooting", incident_characteristics, fixed = TRUE))
 
-### NOTE: DO WE NEED TO DECREASE N_KILLED FOR THE MURDER/SUICIDES BY 1? ###
-## No, the difference will be unnoticeable ##
+gun <- filter(gun, !grepl("Replica", incident_characteristics, fixed = TRUE))

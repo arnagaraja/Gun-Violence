@@ -31,14 +31,29 @@ gun %>% group_by(Year = format(date, "%Y")) %>%
       ggplot(aes(x = Year, y = n)) + geom_col()
 ```
 
-Clearly there are missing data from 2013, and 2018 isn't complete yet. Let's drop these two years. Let's also separate the suicides. 
+Clearly there are missing data from 2013, and 2018 isn't complete yet. Let's drop these two years. Let's also remove the suicides, incidents involving replica weapons, and officer involved shootings.
+
 ```{r}
 gun <- filter(gun, format(date, "%Y") != 2018 & format(date, "%Y") != 2013)
-suicide <- filter(gun, grepl("\\|\\|Suicide\\^", incident_characteristics)
-                      & n_killed + n_injured < 2)
 
-gun <- filter(gun, !(incident_id %in% suicide$incident_id))
+# Remove suicides
+gun <- filter(gun, !(grepl("\\|\\|Suicide\\^", incident_characteristics)
+                      & n_killed + n_injured < 2))
+
+# Remove shootings involving replica weapons and officer involved shootings
+gun <- filter(gun, !grepl("Officer Involved Shooting", incident_characteristics, fixed = TRUE))
+
+gun <- filter(gun, !grepl("Replica", incident_characteristics, fixed = TRUE))
 ```
+
+How many gun casualties were there on average from 2014-2017?
+```{r}
+totalCasualties <- gun %>% group_by(year = format(date, "%Y")) %>% summarize(casualties = sum(n_killed + n_injured), fatalities = sum(n_killed), injuries = sum(n_injured))
+
+colMeans(totalCasualties[,2:4])
+```
+
+Over 38,000 people per year were either killed (12,000+) or injured (26,000+) by a firearm from 2014-2017. That's a little over 100 people each day, and does not include victims of suicide.
 
 ## Most Dangerous States
 How many gun casualties were there in each state for 2014-2017?
@@ -56,15 +71,10 @@ gun %>% group_by(state) %>%
            title = "Number of Gun Casualties in the US by State for 2014-2017")
 ```
 
-The top 5 states with the highest casualty rate are:
+The top 5 states with the highest casualty rates are Illinois, California, Texas, Florida, and Ohio. However, these are also highly populated states. What we really want to know is the *per capita* rate, since population is an important factor. I got census data for each state from 2010-2017 from the [U.S. Census Bureau][1], and then calculated the per capita rates (per hundred thousand people) for each year:
 
-1. Illinois
-2. California
-3. Texas
-4. Florida
-5. Ohio
+[1]:https://factfinder.census.gov/ "U.S. Census Bureau"
 
-However, these are also pretty populated states. What we really want to know is the *per capita* rate, since population is an important factor. I got census data for each state from 2010-2017 from the U.S. Census Bureau, and then calculated the per capita rates (per hundred thousand people) for each year:
 ```{r cache = TRUE, message = FALSE}
 # READ IN US POPULATION DATA BY STATE
 colNames <- c("id1", "id2", "state", "census2010", "cenbase2010", "2010", "2011", "2012", "2013", "2014", "2015", "2016", "2017")
@@ -110,18 +120,11 @@ ggplot(data = meanCBS, aes(x = reorder(state, -meanCasRate), y = meanCasRate)) +
       geom_hline(yintercept = median(meanCBS$meanCasRate), lwd = 1)
 ```
 
-The black line represents the median value for all 50 states. The rankings have changed significantly. The top 5 states with the highest *per capita* casualty rate are:
-
-1. Louisiana
-2. Illinois
-3. Delaware
-4. Mississippi
-5. Alabama
-
-The only state that remained in the top 5 after adjusting for population was Illinois, and that dropped one level.
+The black line represents the median value for all 50 states. The rankings have changed significantly. The top 5 states with the highest *per capita* casualty rate are Louisiana, Illinois, Delaware, Mississippi, and Alabama. The only state that remained in the top 5 after adjusting for population was Illinois. Clearly, it is critical to consider population when talking about gun violence rates across the country (which does not always happen).
 
 ## Most Dangerous Cities
-Let's now look at the *cities* with the highest rates of per capita gun violence. I again used data from the US Census Bureau to find the population of cities in the United States. The dataset I used contained data from 2010-2016 for all cities greater than 50,000 residents. I had to do some manipulation of the city names in order to make them match the cities in the original dataset. Also, since there are no data for 2017, I just used the data for 2016 and assumed there wouldn't be any significant changes.
+Let's now look at the *cities* with the highest rates of per capita gun violence. I again used data from the [U.S. Census Bureau][1] to find the population of cities in the United States. The dataset I used contained data from 2010-2016 for all cities greater than 50,000 residents. I had to do some manipulation of the city names in order to make them match the cities in the original dataset. Also, since there are no data for 2017, I just used the data for 2016 and assumed there wouldn't be any significant changes.
+
 ```{r citydata, cache = TRUE, message = FALSE}
 # READ IN US POPULATION DATA BY CITY
 colNames <- c("id1", "id2", "country", "tid1", "tid2", "rank", "geography1", "city", "census2010", "cenbase2010", "2010", "2011", "2012", "2013", "2014", "2015", "2016")
@@ -152,18 +155,20 @@ for(i in 1:nrow(nyc)) {
       gun[index,"city_or_county"] <- "New York"
 }
 
-# Integrate the new columns back to the tibble and rearrange
+# Integrate the new columns back to the data frame and rearrange
 # Also, since we are missing data for 2017, just reuse the 2016 column
 citypop <- mutate(citypop, city = cityState$city, state = cityState$state, "2017" = citypop$`2016`) %>% select(tid2, city, state, "2014", "2015", "2016", "2017")
 ```
 
 Get the data by city for each year. Note: some years will be missing because those cities did not have any reported gun crimes in those years. Although this will affect the mean values for cities without any reported gun crimes in some years, we are only going to look at the top 50 cities. For these cities to be in the top 50, it stands to reason that there will be crimes from all four years.
+
 ```{r cache = TRUE}
 casByCity <- gun %>% group_by(city_or_county, state, year = format(date, "%Y")) %>% summarize(n.casualty = sum(n_killed + n_injured), n.killed = sum(n_killed), n.injured = sum(n_injured))
 casByCity
 ```
 
 Now, we need a per capita estimate for each city. First we need to generate a vector of populations: figure out if the city in our data frame is actually in the population dataset, and if it is, grab the population for that particular year. Again, the 2017 population values are the same as the 2016 ones.
+
 ```{r cache = TRUE}
 # Get a per capita (100K) estimate for each city
 # First, generate the population vector:
@@ -184,6 +189,7 @@ for (i in 1:nrow(casByCity)) {
 ```
 
 We're also going to need the two letter abbreviations for each state for labels later, so let's grab those and put them in the data frame as well. Don't forget Washington, D.C.!:
+
 ```{r}
 # Get the short name for each state and attach it to the tibble
 data(state)
@@ -193,6 +199,7 @@ abbList <- unlist(lapply(casByCity$state, function(x) abbs[which(abbs$state == x
 ```
 
 Add the population and abbrevation columns, and calculate the mean values for each each state:
+
 ```{r cache = TRUE}
 meanCBC <- ungroup(casByCity) %>% mutate(abb = abbList, population = popList, cas.per.capita100K = n.casualty/population*100000, k.per.capita100K = n.killed/population*100000, i.per.capita100K = n.injured/population*100000)
 
@@ -203,6 +210,7 @@ meanCBC
 ```
 
 Let's plot the top 50:
+
 ```{r top50IF, fig.width = 10, fig.height = 8}
 top50 <- meanCBC[1:50,]
 
@@ -225,6 +233,7 @@ ggplot(data = top50melt2) + geom_col(aes(x = city_or_county, y = value, fill = v
       scale_x_discrete(limits = top50$city_or_county, labels = paste(top50$city_or_county, sep = ", ", top50$abb)) +
       coord_flip()
 ```
+
 According to the data, the top 5 cities with the most gun violence are:
 
 1. Trenton, NJ
@@ -239,7 +248,11 @@ Chicago comes in at 7th, even though Illinois was the second highest per capita 
 One topic that is furiously being debated across the nation is whether or not to pass more/stricter gun laws on top of the ones that already exist. What is the effect of gun laws on casualty rate? Let's analyze this both at the state level and city level.
 
 #### By State
-First, read the data for the state laws into R. The data were downloaded from the State Firearm Law Database  (http://www.statefirearmlaws.org/). I had to reformat the files by re-saving into Excel because they weren't actually saved as a CSV, so it wouldn't have been easy to read it into R. You can download the reformatted CSV files from Github.
+The data about state laws were downloaded from the [State Firearm Law Database][2]. I had to reformat the files by re-saving into Excel because they weren't actually saved as a CSV, so it wouldn't have been easy to read it into R. You can download the reformatted CSV files from [Github][3].
+
+[2]: http://www.statefirearmlaws.org/ "State Firearm Law Database"
+[3]: http://github.com/arnagaraja/Gun-Violence "Github"
+
 ```{r readLawData, message = FALSE}
 lawsdf <- read_csv("data/Laws/48_states_1991_data.csv")
 lawsdf <- rbind(lawsdf, read_csv("data/Laws/Hawaii_1991_data.csv"))
@@ -253,15 +266,17 @@ laws.by.year <- group_by(lawsdf, State, Year) %>% summarize(laws = sum(law))
 mean.laws.by.year <- filter(laws.by.year, Year >= 2014) %>% summarize(meanlaw = mean(laws))
 ```
 
-For a first pass, all we are looking at is the absolute number of laws on the books in each state. For simplicity, we assume that each law is as effective as the next (although that is probably not quite true, and each law's effectiveness probably varies across each state/municipality and has a number of confounding variables). Let's look at the distribution of the number of laws on the books for all 50 states:
+For a first pass, all we are looking at is the absolute number of laws on the books in each state. For simplicity, we assume that each law is as effective as the next (although that is probably not completely true, and each law's effectiveness most likely varies across each state/municipality and has a number of confounding variables). Let's look at the distribution of the number of laws on the books for all 50 states:
+
 ```{r}
 # Histogram of number of laws
 ggplot(data = mean.laws.by.year, aes(x = meanlaw)) + geom_histogram(binwidth = 10, col = "black") + labs(x = "Mean Number of Laws, 2014-2017", y = "Frequency")
 ```
 
-It appears that half the states have around 15 or fewer laws on the books, with the average number of laws being around 25.
+Half the states have around 15 or fewer laws on the books, with the average number of laws being around 25.
 
 Is there a correlation between the number of laws in each state and their mean per capita casualty rate?
+
 ```{r}
 meanCBS <- arrange(meanCBS, state)
 mean.laws.by.year <- arrange(mean.laws.by.year, State)
@@ -269,9 +284,10 @@ meanCBS <- mutate(meanCBS, numlaws = mean.laws.by.year$meanlaw)
 qplot(x = numlaws, y = meanCasRate, data = meanCBS, xlab = "Number of Laws", ylab = "Mean Casualty Rate Per 100,000 People")
 ```
 
-It doesn't appear so. Some states have few laws on the books and have a lower casualty rate, whereas others achieve the low casualty rate with a higher than average number of laws. There are also a lot of states with a high casualty rate and few laws. It could be argued that the states with more laws would actually be *more* violent if the laws didn't exist, but it is difficult to tease out that effect.
+It doesn't appear so. Some states have few laws on the books and have a lower casualty rate, whereas others achieve the low casualty rate with a higher than average number of laws. There are also a lot of states with a high casualty rate and few laws. It could be argued that the states with more laws would actually be *more* violent if the laws didn't exist, but it is difficult to make that conclusion.
 
 Let's look at how each state ranks in terms of casualty rate and the number of gun laws:
+
 ```{r stateLaw-stateRank, fig.width = 10, fig.height = 6}
 g <- ggplot(data = meanCBS, aes(x = reorder(state, -meanCasRate), y = meanCasRate, fill = numlaws))
 p2 <- g + geom_col(color = "gray") + 
@@ -288,7 +304,7 @@ pcaswithlaw <- p2 + scale_fill_gradient2(low = muted("red"), mid = "white", high
 pcaswithlaw
 ```
 
-The top 7 states with the highest average number of laws from 2014-2017 are California (103), Massachusetts (100), Connecticut (86.5), New York (75), New Jersey (68.8), and Illinois (64). Of these seven, two states are above the median casualty rate for the US (Illinois and Maryland) - the other five rank a little below the median rate. It appears there *may* be a weak association between number of laws and state casualty rate, but there are probably other factors at play as well, such as population density. There are a number of states below and above the median casualty rate with fewer gun laws, so it is difficult to conclude that more gun laws translate to less gun violence.
+The top 7 states with the highest average number of laws from 2014-2017 are California (103), Massachusetts (100), Connecticut (86.5), New York (75), New Jersey (68.8), and Illinois (64). Of these seven, two states are above the median casualty rate for the US (Illinois and Maryland) - the other five rank a little below the median rate. It appears there *may* be a weak association between number of laws and state casualty rate, but there are probably other factors at play as well, such as population density. There are a number of states below and above the median casualty rate with fewer gun laws, so it is difficult to conclude that more gun laws translate to less gun violence. **Instead, high rates of gun violence probably have more to do with other factors, such as gang activity, poverty, wealth inequality, etc., instead of a lack of gun laws.**
 
 #### By City
 Let's look at the data by city and try to figure out if there is a correlation between the number of laws in a particular state and the per capita casualty rates for cities in that state:
@@ -313,9 +329,11 @@ p.allcities <- ggplot(data = meanCBClaws, aes(x = `Number of Laws`, y = `Casualt
 
 ggplotly(p.allcities, tooltip = c("text"))
 ```
+
 There are 699 cities displayed here (there are actually a lot more cities throughout the US where gun violence occurred, but the population data were only available for cities over 50,000 people). It is clear that in a given state, there is a wide distribution in the casualty rates. You can hover over each point to see the data it represents.
 
-Let's look at a box and whisker plot in order to see the distribution in city casualty rates in each state:
+Unsurprisingly, it is clear that individual states experience different levels of gun violence in different cities. Let's look at a box plot in order to see the distribution in city casualty rates in each state:
+
 ```{r stateLaw-bwplot, fig.width = 10, fig.height = 6}
 ggplot(data = meanCBClaws, aes(x = state.long, y = `Casualty Rate`, fill = `Number of Laws`)) +
       geom_boxplot() + 
@@ -329,7 +347,7 @@ ggplot(data = meanCBClaws, aes(x = state.long, y = `Casualty Rate`, fill = `Numb
       theme(plot.title = element_text(size = 16))
 ```
 
-**SAY SOMETHING HERE**
+It doesn't appear that there is any trend between the distribution of casualty rates and the number of gun laws in a particular state. Some states with many gun laws (like Maryland) have an extremely small distribution, but one significant outlier (Baltimore). Other states like Mississippi and Louisiana have a large distribution in gun casualty rates across their cities.
 
 Now let's take another look at the injury/fatality rates for the Top 49 cities with the highest rates of gun casualty, this time colored by number of state laws. These are the same cities as those in the Top 50 rank we did earlier, except we've excluded Washington, DC.
 
@@ -361,6 +379,8 @@ citycaswithlaw <- kiplot3 + scale_fill_gradient2(midpoint = max(top49$numlaws)/2
 citycaswithlaw
 ```
 
-Limitations: Individual city laws are not considered. For example, New York City has an average casualty rate of 8.5 per hundred thousand people for 2014-2017. It is one of the MOST POPULOUS cities in the US, yet has a below-average rate of gun casualties. It also has some of the strictest laws. For comparison, Chicago is another densely populated US City and has an average casualty rate of 110 per hundred thousand people. That is almost 13 times as much as NYC!
+Three of the top ten most dangerous cities (Trenton, Baltimore, and Chicago) are among the states with the most gun laws (New Jersey, Maryland, and Illinois, respectively). How can this be?
 
-It seems likely that the laws that exist in New York City are actually effective in curbing gun violence (although it is important to note that we are not considering overall crime here). However, it is unlikely that simply passing MORE laws will be effective. It is important to consider the types of laws that exist, as well as the means of enforcing those laws. 
+It is important to note that individual city laws are not considered here. For example, New York City has an average casualty rate of 8.5 per 100,000 people for 2014-2017. It is one of the MOST POPULOUS cities in the US, yet has a below-average rate of gun casualties. It also has some of the strictest laws. For comparison, Chicago is another densely populated US City and has an average casualty rate of 110 per 100,000 people. That is almost 13 times as dangerous as NYC! Perhaps the cause for this discrepancy is the difference in gun laws for each city. Or, maybe it's a difference in penalties for each violation, availability of black market firearms, effectiveness of the judicial system in punishing offenders, or a mixture of all of these factors and more.
+
+It is plausible that the laws that exist in New York City are actually effective in curbing gun violence (in order to test this, an analysis should be done determining the relationship between gun violence and laws passed over time). However, that does not necessarily mean that these measures would be equally effective in another city, although it would certainly be worth further investigation.
