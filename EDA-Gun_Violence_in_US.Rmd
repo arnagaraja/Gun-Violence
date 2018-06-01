@@ -48,7 +48,11 @@ gun <- filter(gun, !grepl("Replica", incident_characteristics, fixed = TRUE))
 
 How many gun casualties were there on average from 2014-2017?
 ```{r}
-totalCasualties <- gun %>% group_by(year = format(date, "%Y")) %>% summarize(casualties = sum(n_killed + n_injured), fatalities = sum(n_killed), injuries = sum(n_injured))
+totalCasualties <- gun %>% 
+      group_by(year = format(date, "%Y")) %>% 
+      summarize(casualties = sum(n_killed + n_injured), 
+                fatalities = sum(n_killed), 
+                injuries = sum(n_injured))
 
 colMeans(totalCasualties[,2:4])
 ```
@@ -64,7 +68,8 @@ gun %>% group_by(state) %>%
       summarize(n_casualty = sum(n_killed + n_injured)) %>% 
       ggplot(aes(x = reorder(state, -n_casualty), y = n_casualty)) + 
       geom_col(fill = cols[1]) + 
-      theme(axis.text.x  = element_text(angle=90, vjust=0.5, size = 14)) + 
+      theme(axis.text.x = element_text(angle = 90, vjust = 0.5, 
+                                       hjust = 1, size = 14)) + 
       theme(axis.title.y = element_text(size = 16)) + 
       theme(plot.title = element_text(size = 16)) + 
       labs(x = NULL, y = "Casualties (Injuries + Fatalities)", 
@@ -78,14 +83,19 @@ The top 5 states with the highest casualty rates are Illinois, California, Texas
 ```{r cache = TRUE, message = FALSE}
 # READ IN US POPULATION DATA BY STATE
 colNames <- c("id1", "id2", "state", "census2010", "cenbase2010", "2010", "2011", "2012", "2013", "2014", "2015", "2016", "2017")
+
 pop <- read_csv("data/US\ Population\ by\ State/PEP_2017_PEPANNRES_with_ann.csv", skip = 2, col_names = colNames)
 
 # Only keep the columns and rows we want
-pop <- select(pop, id1, state, "2014", "2015", "2016", "2017") %>% slice(6:n())
+pop <- select(pop, id1, state, "2014", "2015", "2016", "2017") %>% 
+      slice(6:n())
 
 # Casualties by state and year; I removed Washington DC from the state rankings, since it's technically a city, not a state
-casByState <- group_by(gun, state, year = format(date, "%Y")) %>% filter(state != "District of Columbia") %>% 
-      summarize(n.casualty = sum(n_killed + n_injured), n.injured = sum(n_injured), n.killed = sum(n_killed))
+casByState <- group_by(gun, state, year = format(date, "%Y")) %>% 
+      filter(state != "District of Columbia") %>% 
+      summarize(n.casualty = sum(n_killed + n_injured), 
+                n.injured = sum(n_injured), 
+                n.killed = sum(n_killed))
 
 # Add the population and the per capita rate (per 100K people)
 
@@ -95,7 +105,11 @@ for (i in 1:nrow(casByState)) {
       popList <- c(popList, as.numeric(pop[pop$state == casByState$state[i], casByState$year[i]]))
 }
 
-casByState <- ungroup(casByState) %>% mutate(population = popList, cas.per.capita100K = n.casualty/population*100000, k.per.capita100K = n.killed/population*100000, i.per.capita100K = n.injured/population*100000)
+casByState <- ungroup(casByState) %>% 
+      mutate(population = popList, 
+             cas.per.capita100K = n.casualty/population*100000,
+             k.per.capita100K = n.killed/population*100000, 
+             i.per.capita100K = n.injured/population*100000)
 ```
 Now that we have the per-state data for each year, let's take a look at it:
 ```{r echo = FALSE}
@@ -105,39 +119,50 @@ casByState
 To make plotting a little simpler, let's take the mean of each per capita rate for each state across each year. So, for each state there will be four entries: 2014, 2015, 2016, and 2017.
 
 ```{r}
-meanCBS <- group_by(casByState, state) %>% summarize(meanCasRate = mean(cas.per.capita100K), meanKRate = mean(k.per.capita100K), meanIRate = mean(i.per.capita100K))
+meanCBS <- group_by(casByState, state) %>% 
+      summarize(meanCasRate = mean(cas.per.capita100K), 
+                meanKRate = mean(k.per.capita100K), 
+                meanIRate = mean(i.per.capita100K))
 ```
 
 Now let's plot it and see:
 ```{r fig.width=10, fig.height = 6}
-ggplot(data = meanCBS, aes(x = reorder(state, -meanCasRate), y = meanCasRate)) + 
+ggplot(data = meanCBS, 
+      aes(x = reorder(state, -meanCasRate), y = meanCasRate)) + 
       geom_col(fill = cols[2]) + 
-      theme(axis.text.x  = element_text(angle = 90, vjust = 0.5, size = 14)) + 
+      theme(axis.text.x  = element_text(angle = 90, vjust = 0.5, 
+                                        hjust = 1, size = 14)) + 
       theme(axis.title.y = element_text(size = 16)) + 
       theme(plot.title = element_text(size = 16)) + 
       labs(x = NULL, y = "Mean Casualty Rate per 100,000 People", 
            title = "Mean Casualty Rate per 100,000 People by State (2014-2017)") +
-      geom_hline(yintercept = median(meanCBS$meanCasRate), lwd = 1)
+      geom_hline(yintercept = median(meanCBS$meanCasRate), lwd = 1) +
+      annotate("text", label = "Median Casualty Rate", x = 40, y = 12.5, size = 6)
+      
 ```
 
 The black line represents the median value for all 50 states. The rankings have changed significantly. The top 5 states with the highest *per capita* casualty rate are Louisiana, Illinois, Delaware, Mississippi, and Alabama. The only state that remained in the top 5 after adjusting for population was Illinois. Clearly, it is critical to consider population when talking about gun violence rates across the country (which does not always happen).
 
 ## Most Dangerous Cities
-Let's now look at the *cities* with the highest rates of per capita gun violence. I again used data from the [U.S. Census Bureau][1] to find the population of cities in the United States. The dataset I used contained data from 2010-2016 for all cities greater than 50,000 residents. I had to do some manipulation of the city names in order to make them match the cities in the original dataset. Also, since there are no data for 2017, I just used the data for 2016 and assumed there wouldn't be any significant changes.
+Let's now look at the *cities* with the highest rates of per capita gun violence. I again used data from the [U.S. Census Bureau][1] to find the population of cities in the United States. The dataset I used contained data from 2010-2016 for all cities greater than 50,000 residents. I had to do some manipulation of the city names in order to make them match the cities in the original dataset. Also, since there are no population data for 2017, I just used the population values from 2016 and assumed there wouldn't be any significant changes.
 
 ```{r citydata, cache = TRUE, message = FALSE}
 # READ IN US POPULATION DATA BY CITY
 colNames <- c("id1", "id2", "country", "tid1", "tid2", "rank", "geography1", "city", "census2010", "cenbase2010", "2010", "2011", "2012", "2013", "2014", "2015", "2016")
+
 citypop <- read_csv("data/US\ Population\ by\ City/PEP_2016_PEPANNRSIP.US12A_with_ann.csv", skip = 2, col_names = colNames)
 
 # Only keep the columns and rows we want (drop all the "government" and "county" entries)
-citypop <- select(citypop, tid2, city, "2014", "2015", "2016") %>% filter(!grepl("[Cc]ounty|government", city))
+citypop <- select(citypop, tid2, city, "2014", "2015", "2016") %>%
+      filter(!grepl("[Cc]ounty|government", city))
 
 # Reformatting city names
-cityState <- sub("^(.+) (city( \\(balance\\))?|municipality|village|town), (.+)", "\\1, \\4", citypop$city) %>% strsplit(", ")
+cityState <- sub("^(.+) (city( \\(balance\\))?|municipality|village|town), (.+)", "\\1, \\4", citypop$city) %>% 
+      strsplit(", ")
 
-# split up the city column into city and state columns
-cityState <- as.data.frame(matrix(unlist(cityState), nrow = length(cityState), byrow = TRUE), stringsAsFactors = FALSE)
+# Split up the city column into city and state columns
+cityState <- as.data.frame(matrix(unlist(cityState), nrow = length(cityState), 
+                                  byrow = TRUE), stringsAsFactors = FALSE)
 names(cityState) <- c("city", "state")
 
 # Ventura, CA has a nonstandard entry; fix it
@@ -146,7 +171,9 @@ cityState$city[grep("\\(", cityState$city)] <- "Ventura"
 # In the original gun violence data, the cities listed for New York are split into the five boroughs. So, for example, Brooklyn and The Bronx are separate entries, when they need to be considered "New York" for our purposes. Let's fix that manually.
 ny <- filter(gun, state == "New York")
 nycInd <- grep("Manhattan|Queens|Bronx|Staten Island|Brooklyn|New York City", ny$city_or_county)
-nyc <- ny[nycInd,] %>% filter(city_or_county != "Queensbury")
+
+nyc <- ny[nycInd,] %>% 
+      filter(city_or_county != "Queensbury")
 
 # Now go through the gun dataframe and change all relevant city_or_state entries to "New York"
 for(i in 1:nrow(nyc)) {
@@ -157,13 +184,20 @@ for(i in 1:nrow(nyc)) {
 
 # Integrate the new columns back to the data frame and rearrange
 # Also, since we are missing data for 2017, just reuse the 2016 column
-citypop <- mutate(citypop, city = cityState$city, state = cityState$state, "2017" = citypop$`2016`) %>% select(tid2, city, state, "2014", "2015", "2016", "2017")
+citypop <- mutate(citypop, 
+                  city = cityState$city, 
+                  state = cityState$state, "2017" = citypop$`2016`) %>% 
+      select(tid2, city, state, "2014", "2015", "2016", "2017")
 ```
 
 Get the data by city for each year. Note: some years will be missing because those cities did not have any reported gun crimes in those years. Although this will affect the mean values for cities without any reported gun crimes in some years, we are only going to look at the top 50 cities. For these cities to be in the top 50, it stands to reason that there will be crimes from all four years.
 
 ```{r cache = TRUE}
-casByCity <- gun %>% group_by(city_or_county, state, year = format(date, "%Y")) %>% summarize(n.casualty = sum(n_killed + n_injured), n.killed = sum(n_killed), n.injured = sum(n_injured))
+casByCity <- gun %>% 
+      group_by(city_or_county, state, year = format(date, "%Y")) %>%
+      summarize(n.casualty = sum(n_killed + n_injured), 
+                n.killed = sum(n_killed), 
+                n.injured = sum(n_injured))
 casByCity
 ```
 
@@ -179,9 +213,12 @@ for (i in 1:nrow(casByCity)) {
       theYear <- casByCity$year[i]
       ind <- which(citypop$city == theCity)
       
-      if (length(ind) > 0 && theCity == citypop$city[ind] && theState == citypop$state[ind]) {
-            popList <- c(popList, as.numeric(citypop[citypop$state ==
-                                    theState & citypop$city == theCity, theYear]))
+      if (length(ind) > 0 && 
+          theCity == citypop$city[ind] && 
+          theState == citypop$state[ind]) {
+            popList <- c(popList, 
+                         as.numeric(citypop[citypop$state == theState & 
+                                                  citypop$city == theCity, theYear]))
       } else {
             popList <- c(popList, NA)
       }
@@ -193,18 +230,30 @@ We're also going to need the two letter abbreviations for each state for labels 
 ```{r}
 # Get the short name for each state and attach it to the tibble
 data(state)
-abbs <- data.frame("abb" = state.abb, "state" = state.name, stringsAsFactors = FALSE)
+abbs <- data.frame("abb" = state.abb, "state" = state.name, 
+                   stringsAsFactors = FALSE)
 abbs <- rbind(abbs, c("DC", "District of Columbia"), stringsAsFactors = FALSE)
-abbList <- unlist(lapply(casByCity$state, function(x) abbs[which(abbs$state == x),]$abb))
+abbList <- unlist(lapply(casByCity$state, 
+                         function(x) abbs[which(abbs$state == x),]$abb))
 ```
 
 Add the population and abbrevation columns, and calculate the mean values for each each state:
 
 ```{r cache = TRUE}
-meanCBC <- ungroup(casByCity) %>% mutate(abb = abbList, population = popList, cas.per.capita100K = n.casualty/population*100000, k.per.capita100K = n.killed/population*100000, i.per.capita100K = n.injured/population*100000)
+meanCBC <- ungroup(casByCity) %>% 
+      mutate(abb = abbList, 
+             population = popList, 
+             cas.per.capita100K = n.casualty/population*100000, 
+             k.per.capita100K = n.killed/population*100000, 
+             i.per.capita100K = n.injured/population*100000)
 
 # Remove NA values and then compute the mean on the remaining values; sort by mean
-meanCBC <- group_by(meanCBC, city_or_county, state, abb) %>% filter(!is.na(population)) %>% summarize(meanCasRate = mean(cas.per.capita100K), meanKRate = mean(k.per.capita100K), meanIRate = mean(i.per.capita100K)) %>% arrange(desc(meanCasRate))
+meanCBC <- group_by(meanCBC, city_or_county, state, abb) %>% 
+      filter(!is.na(population)) %>% 
+      summarize(meanCasRate = mean(cas.per.capita100K), 
+                meanKRate = mean(k.per.capita100K), 
+                meanIRate = mean(i.per.capita100K)) %>% 
+      arrange(desc(meanCasRate))
 
 meanCBC
 ```
@@ -216,21 +265,28 @@ top50 <- meanCBC[1:50,]
 
 top50 <- arrange(top50, meanCasRate)
 top50 <- mutate(top50, meanIRate = -meanIRate)
-top50melt2 <- melt(top50[,c("city_or_county", "abb", "meanKRate", "meanIRate")], id.vars = c("city_or_county", "abb"))
+top50melt2 <- melt(top50[,c("city_or_county", "abb", "meanKRate", "meanIRate")], 
+                   id.vars = c("city_or_county", "abb"))
 
-ggplot(data = top50melt2) + geom_col(aes(x = city_or_county, y = value, fill = variable)) +
-      scale_y_continuous(limits = c(-150,150), breaks = c(150, 100, 50, 0, -50, -100, -150), labels = c("150", "100", "50", "0", "50", "100", "150")) + 
-      theme(axis.text.x  = element_text(hjust = .95, size = 12)) + 
+ggplot(data = top50melt2) + 
+      geom_col(aes(x = city_or_county, y = value, fill = variable)) +
+      scale_y_continuous(limits = c(-150,150), 
+                         breaks = c(150, 100, 50, 0, -50, -100, -150), 
+                         labels = c("150", "100", "50", "0", "50", "100", "150")) + 
+      theme(axis.text.x = element_text(hjust = .95, size = 12)) + 
       theme(axis.text.y = element_text(vjust = 0.5, size = 10)) +
       theme(axis.title.y = element_text(size = 14)) + 
       theme(plot.title = element_text(size = 16)) + 
       theme(legend.title = element_blank()) + 
       theme(legend.position = "bottom") + 
       theme(legend.text = element_text(size = 14)) + 
-      scale_fill_discrete(labels = c("Fatalities", "Injuries"), guide = guide_legend(reverse = TRUE)) +
+      scale_fill_discrete(labels = c("Fatalities", "Injuries"), 
+                          guide = guide_legend(reverse = TRUE)) +
       labs(x = NULL, y = NULL) +
       labs(title = "Mean Injury/Fatality Rate per 100,000 People by City (2014-2017 where available)") + 
-      scale_x_discrete(limits = top50$city_or_county, labels = paste(top50$city_or_county, sep = ", ", top50$abb)) +
+      scale_x_discrete(limits = top50$city_or_county, 
+                       labels = paste(top50$city_or_county, 
+                                      sep = ", ", top50$abb)) +
       coord_flip()
 ```
 
@@ -270,7 +326,9 @@ For a first pass, all we are looking at is the absolute number of laws on the bo
 
 ```{r}
 # Histogram of number of laws
-ggplot(data = mean.laws.by.year, aes(x = meanlaw)) + geom_histogram(binwidth = 10, col = "black") + labs(x = "Mean Number of Laws, 2014-2017", y = "Frequency")
+ggplot(data = mean.laws.by.year, aes(x = meanlaw)) + 
+      geom_histogram(binwidth = 10, col = "black") + 
+      labs(x = "Mean Number of Laws, 2014-2017", y = "Frequency")
 ```
 
 Half the states have around 15 or fewer laws on the books, with the average number of laws being around 25.
@@ -281,7 +339,8 @@ Is there a correlation between the number of laws in each state and their mean p
 meanCBS <- arrange(meanCBS, state)
 mean.laws.by.year <- arrange(mean.laws.by.year, State)
 meanCBS <- mutate(meanCBS, numlaws = mean.laws.by.year$meanlaw)
-qplot(x = numlaws, y = meanCasRate, data = meanCBS, xlab = "Number of Laws", ylab = "Mean Casualty Rate Per 100,000 People")
+qplot(x = numlaws, y = meanCasRate, data = meanCBS, xlab = "Number of Laws", 
+      ylab = "Mean Casualty Rate Per 100,000 People")
 ```
 
 It doesn't appear so. Some states have few laws on the books and have a lower casualty rate, whereas others achieve the low casualty rate with a higher than average number of laws. There are also a lot of states with a high casualty rate and few laws. It could be argued that the states with more laws would actually be *more* violent if the laws didn't exist, but it is difficult to make that conclusion.
@@ -289,7 +348,8 @@ It doesn't appear so. Some states have few laws on the books and have a lower ca
 Let's look at how each state ranks in terms of casualty rate and the number of gun laws:
 
 ```{r stateLaw-stateRank, fig.width = 10, fig.height = 6}
-g <- ggplot(data = meanCBS, aes(x = reorder(state, -meanCasRate), y = meanCasRate, fill = numlaws))
+g <- ggplot(data = meanCBS, aes(x = reorder(state, -meanCasRate), 
+                                y = meanCasRate, fill = numlaws))
 p2 <- g + geom_col(color = "gray") + 
       theme(axis.text.x  = element_text(angle=90, vjust=0.5, size = 14)) + 
       theme(axis.title.y = element_text(size = 16)) + 
@@ -297,10 +357,24 @@ p2 <- g + geom_col(color = "gray") +
       labs(x = NULL, y = "Mean Casualty Rate per 100,000 People", 
            title = "Mean Casualty Rate per 100,000 People by State (2014-2017)")
 
-pcaswithlaw <- p2 + scale_fill_gradient2(low = muted("red"), mid = "white", high = muted("blue"), midpoint = max(meanCBS$numlaws)/2, name = "Avg. Number of Gun Laws", guide = guide_colorbar(direction = "horizontal", title.position = "top", barwidth = 10, title.hjust = .5)) + 
-      theme(legend.background = element_rect(fill="gray90", size=.3, color = "black", linetype = 1)) +
+pcaswithlaw <- p2 + 
+      scale_fill_gradient2(low = muted("red"), 
+                           mid = "white", 
+                           high = muted("blue"), 
+                           midpoint = max(meanCBS$numlaws)/2, 
+                           name = "Avg. Number of Gun Laws", 
+                           guide = guide_colorbar(direction = "horizontal", 
+                                                  title.position = "top", 
+                                                  barwidth = 10, 
+                                                  title.hjust = .5)) + 
+      theme(legend.background = element_rect(fill="gray90", 
+                                             size=.3, 
+                                             color = "black", 
+                                             linetype = 1)) +
       theme(legend.justification=c(1,1), legend.position=c(1,1)) +
-      geom_hline(yintercept = median(meanCBS$meanCasRate), lwd = 1)
+      geom_hline(yintercept = median(meanCBS$meanCasRate), lwd = 1) +
+      annotate("text", label = "Median Casualty Rate", x = 40, y = 12.5, size = 6)
+
 pcaswithlaw
 ```
 
@@ -314,17 +388,27 @@ Let's look at the data by city and try to figure out if there is a correlation b
 meanCBClaws <- filter(meanCBC, state != "District of Columbia")
 lawlist <- sapply(meanCBClaws$state, function(x) mean.laws.by.year[mean.laws.by.year$State == x,2])
 
-meanCBClaws <- ungroup(meanCBClaws) %>% mutate("numlaws" = round(unlist(lawlist), digits = 1), meanCasRate = round(meanCasRate, digits = 1), meanKRate = round(meanKRate, digits = 1), meanIRate = round(meanIRate, digits = 1))
+meanCBClaws <- ungroup(meanCBClaws) %>% 
+      mutate("numlaws" = round(unlist(lawlist), digits = 1), 
+             meanCasRate = round(meanCasRate, digits = 1), 
+             meanKRate = round(meanKRate, digits = 1), 
+             meanIRate = round(meanIRate, digits = 1))
 
 oldnames <- names(meanCBClaws) # Save the current column names for later
 
 # Do some renaming to make things easier to understand
 names(meanCBClaws) <- c("City", "state.long", "State", "Casualty Rate", "Fatality Rate", "Injury Rate", "Number of Laws")
 
-p.allcities <- ggplot(data = meanCBClaws, aes(x = `Number of Laws`, y = `Casualty Rate`, color = State)) +
-      geom_point(aes(text = paste(City, ", ", State, "<br>Number of Laws: ", `Number of Laws`, "<br>Casualty Rate: ", `Casualty Rate`, "<br>Fatality Rate: ", `Fatality Rate`, "<br>Injury Rate: ", `Injury Rate`, sep = ""))) + 
-      labs(x = "Number of Laws") + 
-      labs (y = "Casualty Rate (Per 100,000 People)") +
+p.allcities <- ggplot(data = meanCBClaws, aes(x = `Number of Laws`, 
+                                              y = `Casualty Rate`, 
+                                              color = State)) +
+      geom_point(aes(text = paste(City, ", ", State, "<br>Number of Laws: ", 
+                                  `Number of Laws`, "<br>Casualty Rate: ", 
+                                  `Casualty Rate`, "<br>Fatality Rate: ", 
+                                  `Fatality Rate`, "<br>Injury Rate: ", 
+                                  `Injury Rate`, sep = ""))) + 
+      labs(x = "Number of Laws", 
+           y = "Casualty Rate (Per 100,000 People)") + 
       theme(legend.position = "none")
 
 ggplotly(p.allcities, tooltip = c("text"))
@@ -335,12 +419,14 @@ There are 699 cities displayed here (there are actually a lot more cities throug
 Unsurprisingly, it is clear that individual states experience different levels of gun violence in different cities. Let's look at a box plot in order to see the distribution in city casualty rates in each state:
 
 ```{r stateLaw-bwplot, fig.width = 10, fig.height = 6}
-ggplot(data = meanCBClaws, aes(x = state.long, y = `Casualty Rate`, fill = `Number of Laws`)) +
+ggplot(data = meanCBClaws, aes(x = state.long, y = `Casualty Rate`, 
+                               fill = `Number of Laws`)) +
       geom_boxplot() + 
       labs(x = NULL) + 
       labs (y = "Casualty Rate (Per 100,000 People)") +
       scale_fill_gradient2(midpoint = max(meanCBClaws$`Number of Laws`)/2, name = "Avg. Number of State Gun Laws", guide = guide_colorbar(direction = "horizontal", title.position = "top", barwidth = 10, title.hjust = .5)) + 
-      theme(legend.background = element_rect(fill="gray90", size=.3, color = "black", linetype = 1)) +
+      theme(legend.background = element_rect(fill="gray90", size=.3, 
+                                             color = "black", linetype = 1)) +
       theme(legend.justification=c(1,1), legend.position=c(1,1)) +
       theme(axis.text.x  = element_text(angle=90, vjust=0.5, size = 14)) + 
       theme(axis.title.y = element_text(size = 16)) + 
@@ -355,23 +441,40 @@ Now let's take another look at the injury/fatality rates for the Top 49 cities w
 names(meanCBClaws) <- oldnames 
 
 # Take the top 49 cities and change the injury rate to negative for easy plotting
-top49 <- meanCBClaws[1:49,] %>% arrange(meanCasRate) %>% mutate(meanIRate = -meanIRate)
-top49melt <- melt(top49[,c("city_or_county", "abb", "meanKRate", "meanIRate", "numlaws")], id.vars = c("city_or_county", "abb", "numlaws"))
+top49 <- meanCBClaws[1:49,] %>% 
+      arrange(meanCasRate) %>% 
+      mutate(meanIRate = -meanIRate)
 
-kiplot3 <- ggplot(data = top49melt) + geom_col(aes(x = city_or_county, y = value, fill = numlaws)) +
+top49melt <- melt(top49[,c("city_or_county", "abb", "meanKRate", "meanIRate", 
+                           "numlaws")], 
+                  id.vars = c("city_or_county", "abb", "numlaws"))
+
+kiplot3 <- ggplot(data = top49melt) + 
+      geom_col(aes(x = city_or_county, y = value, fill = numlaws)) +
       scale_y_continuous(breaks = c(50, 0, -50, -100, -150), labels = c("50", "0", "50", "100", "150")) + 
       theme(axis.text.x  = element_text(hjust = .95, size = 12)) + 
       theme(axis.text.y = element_text(vjust = 0.5, size = 10)) +
       theme(axis.title.y = element_text(size = 14)) + 
       theme(plot.title = element_text(size = 16)) + 
       labs(x = NULL, y = NULL) +
-      labs(title = "Mean Injury/Fatality Rate per 100,000 People by City (2014-2017 where available)") + 
-      scale_x_discrete(limits = top49$city_or_county, labels = paste(top49$city_or_county, sep = ", ", top49$abb)) +
+      labs(title = "Mean Injury/Fatality Rate per 100,000 People by City (2014-2017 
+           where available)") + 
+      scale_x_discrete(limits = top49$city_or_county, 
+                       labels = paste(top49$city_or_county, sep = ", ", 
+                                      top49$abb)) +
       geom_hline(yintercept = 0, lwd = 2, color = "black") +
       coord_flip()
 
-citycaswithlaw <- kiplot3 + scale_fill_gradient2(midpoint = max(top49$numlaws)/2, name = "Avg. Number of State Gun Laws", guide = guide_colorbar(direction = "horizontal", title.position = "top", barwidth = 10, title.hjust = .5)) + 
-      theme(legend.background = element_rect(fill="gray90", size=.3, color = "black", linetype = 1)) +
+citycaswithlaw <- kiplot3 + 
+      scale_fill_gradient2(midpoint = max(top49$numlaws)/2, 
+                           name = "Avg. Number of State Gun Laws", 
+                           guide = guide_colorbar(direction = "horizontal",
+                                                  title.position = "top", 
+                                                  barwidth = 10, 
+                                                  title.hjust = .5)) + 
+      theme(legend.background = element_rect(fill="gray90", 
+                                             size=.3, color = "black", 
+                                             linetype = 1)) +
       theme(legend.justification=c(.125,.125), legend.position=c(.125,.125)) +
       annotate("label", x = 25, y = -100, label = "Injuries", size = 6) + 
       annotate("label", x = 25, y = 45, label = "Fatalities", size = 6)
