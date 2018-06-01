@@ -351,7 +351,8 @@ Let's look at how each state ranks in terms of casualty rate and the number of g
 g <- ggplot(data = meanCBS, aes(x = reorder(state, -meanCasRate), 
                                 y = meanCasRate, fill = numlaws))
 p2 <- g + geom_col(color = "gray") + 
-      theme(axis.text.x  = element_text(angle=90, vjust=0.5, size = 14)) + 
+      theme(axis.text.x  = element_text(angle = 90, vjust = 0.5, 
+                                        hjust = 1, size = 14)) + 
       theme(axis.title.y = element_text(size = 16)) + 
       theme(plot.title = element_text(size = 16)) + 
       labs(x = NULL, y = "Mean Casualty Rate per 100,000 People", 
@@ -428,7 +429,8 @@ ggplot(data = meanCBClaws, aes(x = state.long, y = `Casualty Rate`,
       theme(legend.background = element_rect(fill="gray90", size=.3, 
                                              color = "black", linetype = 1)) +
       theme(legend.justification=c(1,1), legend.position=c(1,1)) +
-      theme(axis.text.x  = element_text(angle=90, vjust=0.5, size = 14)) + 
+      theme(axis.text.x  = element_text(angle = 90, vjust = 0.5, 
+                                        hjust = 1, size = 14)) + 
       theme(axis.title.y = element_text(size = 16)) + 
       theme(plot.title = element_text(size = 16))
 ```
