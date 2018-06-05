@@ -1,0 +1,9 @@
+I have the per capita mean casualty rate for 2014-2017 for each state
+
+I also have the number of gun laws on the books for each year.
+
+Options:
+Create a color for each level of number of gun laws and label each bar according to that classification
+
+Set the alpha to be a function of the number of gun laws
+

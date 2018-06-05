@@ -1,0 +1,9 @@
+base
+ggplot2
+readr
+RColorBrewer
+reshape2
+dplyr
+plotly
+scales
+bindrcpp

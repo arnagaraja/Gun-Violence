@@ -88,21 +88,20 @@ bw.allcities
 
 # Symmetric horizontal bar plot
 names(meanCBClaws) <- oldnames # Set the names back to what they were so I don't have to rewrite the code
-top49 <- meanCBClaws[1:49,] %>% arrange(meanCasRate) %>% mutate(meanIRate = -meanIRate)
-top49melt <- melt(top49[,c("city_or_county", "abb", "meanKRate", "meanIRate", "numlaws")], id.vars = c("city_or_county", "abb", "numlaws"))
+top49 <- meanCBClaws[1:49,] %>% 
+      arrange(meanCasRate) %>%
+      mutate(meanIRate = -meanIRate, city = paste(city_or_county, sep = ", ", abb))
+top49melt <- melt(top49[,c("city", "meanCasRate", "meanKRate", "meanIRate", "numlaws")], id.vars = c("city", "meanCasRate", "numlaws"))
 
-kiplot3 <- ggplot(data = top49melt) + geom_col(aes(x = city_or_county, y = value, fill = numlaws)) +
+kiplot3 <- ggplot(data = top49melt) + 
+      geom_col(aes(x = reorder(city, meanCasRate), y = value, fill = numlaws)) +
       scale_y_continuous(breaks = c(50, 0, -50, -100, -150), labels = c("50", "0", "50", "100", "150")) + 
       theme(axis.text.x  = element_text(hjust = .95, size = 12)) + 
       theme(axis.text.y = element_text(vjust = 0.5, size = 10)) +
       theme(axis.title.y = element_text(size = 14)) + 
       theme(plot.title = element_text(size = 16)) + 
-      #theme(legend.title = element_blank()) + 
-      #theme(legend.position = "bottom") + 
-      #theme(legend.text = element_text(size = 14)) + 
       labs(x = NULL, y = NULL) +
       labs(title = "Mean Injury/Fatality Rate per 100,000 People by City (2014-2017 where available)") + 
-      scale_x_discrete(limits = top49$city_or_county, labels = paste(top49$city_or_county, sep = ", ", top49$abb)) +
       geom_hline(yintercept = 0, lwd = 2, color = "black") +
       coord_flip()
 

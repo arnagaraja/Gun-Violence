@@ -40,7 +40,7 @@ for (i in 1:nrow(casByCity)) {
       theCity <- casByCity$city_or_county[i]
       theState <- casByCity$state[i]
       theYear <- casByCity$year[i]
-      ind <- which(citypop$city == theCity)
+      ind <- which(citypop$city == theCity & citypop$state == theState)
       
       if (length(ind) > 0 && theCity == citypop$city[ind] && theState == citypop$state[ind]) {
             popList <- c(popList, as.numeric(citypop[citypop$state ==
@@ -59,24 +59,25 @@ abbList <- unlist(lapply(casByCity$state, function(x) abbs[which(abbs$state == x
 meanCBC <- as.data.frame(casByCity) %>% mutate(abb = abbList, population = popList, cas.per.capita100K = n.casualty/population*100000, k.per.capita100K = n.killed/population*100000, i.per.capita100K = n.injured/population*100000) %>% as_tibble()
 
 # Remove NA values and then compute the mean on the remaining values; sort by mean
-meanCBC <- group_by(meanCBC, city_or_county, state, abb) %>% filter(!is.na(population)) %>% summarize(meanCasRate = mean(cas.per.capita100K), meanKRate = mean(k.per.capita100K), meanIRate = mean(i.per.capita100K)) %>% arrange(desc(meanCasRate))
+meanCBC <- filter(meanCBC, !is.na(population)) %>% 
+      group_by(city_or_county, state, abb) %>% 
+      summarize(meanCasRate = mean(cas.per.capita100K), meanKRate = mean(k.per.capita100K), meanIRate = mean(i.per.capita100K)) %>% 
+      arrange(desc(meanCasRate))
 
 top50 <- meanCBC[1:50,]
 
 # Plot it
 top50 <- arrange(top50, desc(meanCasRate))
-g <- ggplot(data = top50, aes(x = reorder(city_or_county, -meanCasRate), y = meanCasRate))
 
-cityplot <- g + geom_col(position = position_dodge(), fill = cols[2]) + 
+cityplot <- ggplot(data = top50, aes(x = reorder(paste(city_or_county, sep = ", ", top50$abb), -meanCasRate), y = meanCasRate)) + 
+      geom_col(position = position_dodge(), fill = cols[2]) + 
       theme(axis.text.x  = element_text(angle=90, vjust=0.5, hjust = .95, size = 12)) + 
       theme(axis.title.y = element_text(size = 16)) + 
       theme(plot.title = element_text(size = 16)) + 
       guides(fill = FALSE) + 
       labs(x = NULL, y = "Mean Casualty Rate per 100,000 People", 
-           title = "Mean Casualty Rate per 100,000 People by City (2014-2017 where available)")
-
-# Add the state abbreviations to the labels
-cityplot <- cityplot + scale_x_discrete(labels = paste(top50$city_or_county, sep = ", ", top50$abb))
+           title = "Mean Casualty Rate per 100,000 People by City (2014-2017 where available)") +
+      scale_x_discrete(labels = paste(top50$city_or_county, sep = ", ", top50$abb))
 
 # Fatalities
 top50 <- arrange(top50, meanKRate)
@@ -108,10 +109,10 @@ kiplot <- ggplot(data = top50melt) + geom_col(aes(x = city_or_county, y = value,
 
 # Adhoc symmetric horizontal bar plot
 top50 <- arrange(top50, meanCasRate)
-top50 <- mutate(top50, meanIRate = -meanIRate)
-top50melt2 <- melt(top50[,c("city_or_county", "abb", "meanKRate", "meanIRate")], id.vars = c("city_or_county", "abb"))
+top50 <- mutate(top50, meanIRate = -meanIRate, city = paste(city_or_county, sep = ", ", abb))
+top50melt2 <- melt(top50[,c("city", "meanKRate", "meanIRate", "meanCasRate")], id.vars = c("city", "meanCasRate"))
 
-kiplot2 <- ggplot(data = top50melt2) + geom_col(aes(x = city_or_county, y = value, fill = variable)) +
+kiplot2 <- ggplot(data = top50melt2) + geom_col(aes(x = reorder(city, meanCasRate), y = value, fill = variable)) +
       scale_y_continuous(breaks = c(50, 0, -50, -100, -150), labels = c("50", "0", "50", "100", "150")) + 
       theme(axis.text.x  = element_text(hjust = .95, size = 12)) + 
       theme(axis.text.y = element_text(vjust = 0.5, size = 10)) +
@@ -124,7 +125,7 @@ kiplot2 <- ggplot(data = top50melt2) + geom_col(aes(x = city_or_county, y = valu
       labs(x = NULL) +
       labs(y = "Mean Injury/Fatality Rate per 100,000 People") +
       labs(title = "Mean Injury/Fatality Rate per 100,000 People by City (2014-2017 where available)") + 
-      scale_x_discrete(limits = top50$city_or_county, labels = paste(top50$city_or_county, sep = ", ", top50$abb)) +
+      #scale_x_discrete(limits = top50$city_or_county, labels = ) +
       coord_flip()
 
 #library(plotly)
