@@ -2,7 +2,8 @@ library(dplyr)
 library(ggplot2)
 library(readr)
 library(RColorBrewer)
-library(ggmap)
+library(maps)
+#library(mapdata)
 
 df <- read_csv("data/gun-violence-data_01-2013_03-2018.csv")
 

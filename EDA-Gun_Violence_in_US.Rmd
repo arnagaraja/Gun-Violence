@@ -14,6 +14,7 @@ library(reshape2)
 library(dplyr)
 library(plotly)
 library(scales)
+library(maps)
 ```
 
 Read the dataset:
@@ -144,6 +145,46 @@ ggplot(data = meanCBS,
 ```
 
 The black line represents the median value for all 50 states. The rankings have changed significantly. The top 5 states with the highest *per capita* casualty rate are Louisiana, Illinois, Delaware, Mississippi, and Alabama. The only state that remained in the top 5 after adjusting for population was Illinois. Clearly, it is critical to consider population when talking about gun violence rates across the country (which does not always happen).
+
+Heat map:
+```{r stateHeatMap}
+# Heat map of casualty rates across the US
+# ======================================
+
+.simpleCap <- function(x) {
+      s <- strsplit(x, " ")[[1]]
+      paste(toupper(substring(s, 1, 1)), substring(s, 2),
+            sep = "", collapse = " ")
+}
+
+statemap <- map_data("state")
+statemap <- as_tibble(statemap) %>%
+      filter(region != "district of columbia") %>%
+      mutate(region = sapply(region, .simpleCap))
+
+mapCasRates <- unlist(sapply(statemap$region, function(x) meanCBS[meanCBS$state == x, 2]))
+
+statemap <- mutate(statemap, meanCasRate = mapCasRates)
+
+p1 <- ggplot(data = statemap, aes(x = long, 
+                                  y = lat, 
+                                  group = group, 
+                                  fill = meanCasRate,
+                                  text = paste(region, "<br>Casualty Rate: ", round(meanCasRate, digits = 1), sep = ""))) + 
+      geom_polygon(color = "white") + 
+      coord_fixed(1.3, xlim = c(-130,-60), ylim = c(20,50)) +
+      scale_fill_gradient(low = "#f2f0f7", high = "#54278f",
+                          name = "Mean Casualty Rate", 
+                           guide = guide_colorbar(direction = "horizontal", 
+                                                  title.position = "top", 
+                                                  barwidth = 10, 
+                                                  title.hjust = .5)) +
+      theme_void() +
+      theme(legend.justification=c(.5, .5), legend.position=c(.5, 0))
+
+ggplotly(p1, tooltip = c("text"))
+```
+
 
 ## Most Dangerous Cities
 Let's now look at the *cities* with the highest rates of per capita gun violence. I again used data from the [U.S. Census Bureau][1] to find the population of cities in the United States. The dataset I used contained data from 2010-2016 for all cities greater than 50,000 residents. I had to do some manipulation of the city names in order to make them match the cities in the original dataset. Also, since there are no population data for 2017, I just used the population values from 2016 and assumed there wouldn't be any significant changes.

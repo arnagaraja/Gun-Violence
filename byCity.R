@@ -15,6 +15,9 @@ names(cityState) <- c("city", "state")
 # Ventura, CA has a nonstandard entry; fix it
 cityState$city[grep("\\(", cityState$city)] <- "Ventura"
 
+# Fix entry for Honolulu, HI
+cityState$city[grep("Urban", cityState$city, fixed = TRUE)] <- "Honolulu"
+
 # In the original gun violence data, the cities listed for New York are split into the five boroughs. So, for example, Brooklyn and The Bronx are separate entries, when they need to be considered "New York" for our purposes. Let's fix that manually.
 ny <- filter(gun, state == "New York")
 nycInd <- grep("Manhattan|Queens|Bronx|Staten Island|Brooklyn|New York City", ny$city_or_county)

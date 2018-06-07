@@ -77,3 +77,49 @@ p2 <- g + geom_col(position = position_dodge(), fill = cols[2]) +
 
 # Add a line for the median
 p3 <- p2 + geom_hline(yintercept = median(casByStateMean$meanCasRate), lwd = 1)
+
+
+# Heat map of casualty rates across the US
+# ======================================
+
+.simpleCap <- function(x) {
+      s <- strsplit(x, " ")[[1]]
+      paste(toupper(substring(s, 1, 1)), substring(s, 2),
+            sep = "", collapse = " ")
+}
+
+statemap <- map_data("state")
+statemap <- as_tibble(statemap) %>%
+      filter(region != "district of columbia") %>%
+      mutate(region = sapply(region, .simpleCap))
+
+mapCasRates <- unlist(sapply(statemap$region, function(x) casByStateMean[casByStateMean$state == x, 2]))
+
+statemap <- mutate(statemap, meanCasRate = mapCasRates)
+
+p1 <- ggplot(data = statemap, aes(x = long, 
+                                  y = lat, 
+                                  group = group, 
+                                  fill = meanCasRate,
+                                  text = paste(region, "<br>Casualty Rate: ", round(meanCasRate, digits = 1), sep = ""))) + 
+      geom_polygon(color = "white") + 
+      coord_fixed(1.3, xlim = c(-130,-60), ylim = c(20,50)) +
+      scale_fill_gradient(low = "#f2f0f7", high = "#54278f",
+                          name = "Mean Casualty Rate", 
+                           guide = guide_colorbar(direction = "horizontal", 
+                                                  title.position = "top", 
+                                                  barwidth = 10, 
+                                                  title.hjust = .5)) +
+      theme_void() +
+      theme(legend.justification=c(.5, .5), legend.position=c(.5, 0))
+
+ggplotly(p1, tooltip = c("text"))
+
+
+      
+
+# p2 <- p1 + 
+#       geom_point(data = gun, aes(x = longitude, y = latitude, col = n_killed), 
+#                  size = 0.001, alpha = .1, inherit.aes = FALSE) + 
+#       theme_void() + 
+#       theme(legend.position = "none")
